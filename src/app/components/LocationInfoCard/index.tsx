@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import clsx from 'clsx'
 import Background from '../../components/Background'
 import WeatherIcon from '../Icon'
 import { getConvertedTemperature } from '@/utils/unitConverter'
@@ -20,6 +21,7 @@ interface Props {
     queryKey: QueryKey,
     e: React.MouseEvent<HTMLDivElement, MouseEvent>,
   ) => void
+  isActive?: boolean
   i: number
 }
 
@@ -29,6 +31,7 @@ export const LocationInfoCard = ({
   setActiveLocationId,
   isEditing,
   handleRemoval,
+  isActive = false,
   i,
 }: Props) => {
   const router = useRouter()
@@ -63,11 +66,16 @@ export const LocationInfoCard = ({
   }
   return (
     <div
-      className="overflow-hidden"
-      style={{ animationDelay: `${(i + 1) * 0.05}s` }}
+      className={clsx(
+        'animate-[fade-in_0.5s_ease-out_both] overflow-hidden rounded-2xl transition-shadow duration-300',
+        isActive
+          ? 'shadow-lg shadow-black/25 ring-2 ring-white/80'
+          : 'ring-1 ring-white/10',
+      )}
+      style={{ animationDelay: `${(i + 1) * 0.06}s` }}
     >
       <div
-        className="relative h-[20vh] max-h-[150px] min-h-[150px] cursor-pointer overflow-hidden"
+        className="relative h-[20vh] max-h-[150px] min-h-[150px] cursor-pointer overflow-hidden active:brightness-110"
         onClick={(e) => handleLocationSelection(e)}
       >
         <Background
@@ -111,6 +119,11 @@ export const LocationInfoCard = ({
                     height={20}
                     viewBox="0 0 30 30"
                   />
+                )}
+                {isActive && (
+                  <span className="ml-2 rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-white/90 ring-1 ring-inset ring-white/15">
+                    Current
+                  </span>
                 )}
               </div>
               <div

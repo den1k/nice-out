@@ -58,8 +58,10 @@ interface GlobalContextValue {
   }
   currentDay: DailyWeather | undefined
   handleAnimation: () => void
-  isUnitMetric: boolean
-  setIsUnitMetric: React.Dispatch<React.SetStateAction<boolean>>
+  isTempMetric: boolean
+  setIsTempMetric: React.Dispatch<React.SetStateAction<boolean>>
+  isDistanceMetric: boolean
+  setIsDistanceMetric: React.Dispatch<React.SetStateAction<boolean>>
   cachedLocations: cachedLocation[] | null
   activeLocationId: string | null | undefined
   setActiveLocationId: React.Dispatch<
@@ -101,7 +103,19 @@ const defaultTimestamp = {
   daylight: true,
 }
 
-const TEMPERATURE_UNIT_KEY = 'isUnitMetric'
+// Legacy combined key — read from it once so existing users keep their choice
+const LEGACY_UNIT_KEY = 'isUnitMetric'
+const TEMP_UNIT_KEY = 'isTempMetric'
+const DISTANCE_UNIT_KEY = 'isDistanceMetric'
+
+// Read a unit preference, falling back to the legacy combined key, then to metric
+const readUnitPref = (key: string) => {
+  if (typeof window === 'undefined') return true
+  const saved = localStorage.getItem(key)
+  if (saved !== null) return saved === 'true'
+  const legacy = localStorage.getItem(LEGACY_UNIT_KEY)
+  return legacy === null ? true : legacy === 'true'
+}
 
 export const GlobalContextProvider = ({
   children,
@@ -113,17 +127,21 @@ export const GlobalContextProvider = ({
   const [savedCurrentDayBreaks, setSavedCurrentDayBreaks] = useState<
     GraphData['dayBreaks'][0] | undefined
   >()
-  // Initialize state with value from localStorage, default to true (metric)
-  const [isUnitMetric, setIsUnitMetric] = useState(() => {
-    if (typeof window === 'undefined') return true
-    const saved = localStorage.getItem(TEMPERATURE_UNIT_KEY)
-    return saved === null ? true : saved === 'true'
-  })
+  // Independent unit preferences, each defaulting to metric (or the legacy choice)
+  const [isTempMetric, setIsTempMetric] = useState(() =>
+    readUnitPref(TEMP_UNIT_KEY),
+  )
+  const [isDistanceMetric, setIsDistanceMetric] = useState(() =>
+    readUnitPref(DISTANCE_UNIT_KEY),
+  )
 
-  // Update localStorage when the unit changes
+  // Persist each preference independently when it changes
   useEffect(() => {
-    localStorage.setItem(TEMPERATURE_UNIT_KEY, String(isUnitMetric))
-  }, [isUnitMetric])
+    localStorage.setItem(TEMP_UNIT_KEY, String(isTempMetric))
+  }, [isTempMetric])
+  useEffect(() => {
+    localStorage.setItem(DISTANCE_UNIT_KEY, String(isDistanceMetric))
+  }, [isDistanceMetric])
 
   const [activeLocationId, setActiveLocationId] = useState<
     string | null | undefined
@@ -315,52 +333,53 @@ export const GlobalContextProvider = ({
       daylight: currentData?.daylight ?? oldTimestamp?.daylight ?? true,
     })
     setTemperatureData({
-      temperature: getConvertedTemperature(temperature, isUnitMetric) as number,
+      temperature: getConvertedTemperature(temperature, isTempMetric) as number,
       feelsLikeTemperature: getConvertedTemperature(
         feelsLikeTemperature,
-        isUnitMetric,
+        isTempMetric,
       ),
       currentDayMaxTemp: getConvertedTemperature(
         currentDayMaxTemp,
-        isUnitMetric,
+        isTempMetric,
       ),
       currentDayMinTemp: getConvertedTemperature(
         currentDayMinTemp,
-        isUnitMetric,
+        isTempMetric,
       ),
       currentDayFeelsLikeMaxTemp: getConvertedTemperature(
         currentDayDerivedTemps?.feelsLikeMaxTemp,
-        isUnitMetric,
+        isTempMetric,
       ),
       currentDayFeelsLikeMinTemp: getConvertedTemperature(
         currentDayDerivedTemps?.feelsLikeMinTemp,
-        isUnitMetric,
+        isTempMetric,
       ),
       currentDayDailyAverageTemp: getConvertedTemperature(
         currentDayDerivedTemps?.dailyAverageTemp,
-        isUnitMetric,
+        isTempMetric,
       ),
     })
 
     setWeatherInfo({
-      wind: getConvertedWindSpeed(currentData?.windSpeed, isUnitMetric) ?? 0,
+      wind: getConvertedWindSpeed(currentData?.windSpeed, isDistanceMetric) ?? 0,
       precipitation:
         getConvertedPrecipitation(
           currentData?.precipitationAmount,
-          isUnitMetric,
+          isDistanceMetric,
         ) ?? 0,
       humidity: currentData?.humidity ?? 0,
       feelsLike:
         getConvertedTemperature(
           currentData?.temperatureApparent,
-          isUnitMetric,
+          isTempMetric,
         ) ?? 0,
       cloudCover: currentData?.cloudCover ?? 0,
-      pressure: getConvertedPressure(currentData?.pressure, isUnitMetric) ?? 0,
+      pressure:
+        getConvertedPressure(currentData?.pressure, isDistanceMetric) ?? 0,
       dew:
         getConvertedTemperature(
           currentData?.temperatureDewPoint,
-          isUnitMetric,
+          isTempMetric,
         ) ?? 0,
       uvIndex: currentData?.uvIndex ?? 0,
       precipitationChance: currentData?.precipitationChance ?? 0,
@@ -369,7 +388,8 @@ export const GlobalContextProvider = ({
     JSON.stringify(graphData),
     hasD,
     weatherData,
-    isUnitMetric,
+    isTempMetric,
+    isDistanceMetric,
     currentNoonValue,
   ])
 
@@ -430,8 +450,10 @@ export const GlobalContextProvider = ({
     error,
     isLoading,
     currentDay,
-    isUnitMetric,
-    setIsUnitMetric,
+    isTempMetric,
+    setIsTempMetric,
+    isDistanceMetric,
+    setIsDistanceMetric,
     cachedLocations,
     activeLocationId,
     setActiveLocationId,

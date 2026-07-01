@@ -14,7 +14,7 @@ const Footer = () => {
     currentDay,
     graphData,
     containerRef,
-    isUnitMetric,
+    isTempMetric,
     setCurrentNoonValue,
   } = useGlobalContext()
 
@@ -77,7 +77,7 @@ const Footer = () => {
               />
             </span>
             <span className="relative text-2xs opacity-60 md:text-sm">
-              {getAverageTemperature(day.forecastStart, isUnitMetric)}
+              {getAverageTemperature(day.forecastStart, isTempMetric)}
             </span>
             {moment
               .tz(day.forecastStart, weatherData?.timezone ?? '')

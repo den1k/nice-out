@@ -21,14 +21,18 @@ const Header = () => {
   return (
     <div className="animate-fade-in fixed top-0 z-10 flex w-full flex-wrap items-center justify-between p-4 md:p-6 lg:p-10">
       <div className="mb-[calc(2rem, 2vh)] relative flex w-full items-center justify-start">
-        <Link href="/locations" className="absolute">
+        <Link
+          href="/locations"
+          aria-label="Settings and locations"
+          className="absolute right-0 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-[#00000026] text-white transition-all hover:bg-[#00000040] active:scale-90"
+        >
           <WeatherIcon
-            icon={'add'}
+            icon={'settings'}
             x={0}
             y={0}
-            width={50}
-            height={50}
-            viewBox="0 0 30 30"
+            width={24}
+            height={24}
+            viewBox="0 0 24 24"
           />
         </Link>
         <div className="flex w-full flex-1 flex-col items-center">

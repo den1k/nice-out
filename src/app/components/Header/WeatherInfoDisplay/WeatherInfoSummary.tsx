@@ -2,7 +2,7 @@ import React from 'react'
 import { useGlobalContext } from '@/lib/GlobalContext'
 
 const WeatherInfoSummary = () => {
-  const { weatherInfo, isUnitMetric } = useGlobalContext()
+  const { weatherInfo, isDistanceMetric } = useGlobalContext()
   const {
     wind,
     precipitation,
@@ -74,7 +74,7 @@ const WeatherInfoSummary = () => {
             <div className="flex gap-0.5 text-3xs font-medium tracking-wide text-white md:text-sm">
               <span>{info.value}</span>
               <span className="text-3xs md:text-sm">
-                {isUnitMetric ? info.metricUnit : info.imperialUnit}
+                {isDistanceMetric ? info.metricUnit : info.imperialUnit}
               </span>
             </div>
           </div>

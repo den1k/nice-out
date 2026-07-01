@@ -38,3 +38,6 @@ next-env.d.ts
 
 # service worker
 public/sw.js
+# Local deploy artifacts (do not commit)
+AuthKey*.p8
+package-lock.json

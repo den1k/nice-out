@@ -20,7 +20,7 @@ const Temperature = () => {
   const [longPressTriggered, setLongPressTriggered] = useState(false)
   const {
     temperatureData,
-    setIsUnitMetric,
+    setIsTempMetric,
     containerRef,
     graphData,
     weatherData,
@@ -55,7 +55,7 @@ const Temperature = () => {
     setLongPressTriggered(false)
     longPressTimer.current = setTimeout(() => {
       setLongPressTriggered(true)
-      setIsUnitMetric((prev) => !prev)
+      setIsTempMetric((prev) => !prev)
     }, 500)
   }
 

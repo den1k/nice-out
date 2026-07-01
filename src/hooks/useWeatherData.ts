@@ -98,7 +98,10 @@ export const useWeatherData = ({
         current: json.currentWeather,
         hourly: json.forecastHourly.hours,
         daily: json.forecastDaily.days,
-        locationName: name,
+        // Prefer the name resolved when the place was selected (e.g. "Brooklyn").
+        // OpenWeatherMap's reverse-geocode collapses sub-localities to the parent
+        // city ("New York"), so only fall back to it for GPS, which has no name.
+        locationName: location?.name || name,
         locationId: id,
         googleLocationID: location?.googleLocationID || '',
         isGPSLocation: location?.isGPSLocation,
