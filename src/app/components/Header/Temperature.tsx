@@ -20,6 +20,7 @@ const Temperature = () => {
   const [longPressTriggered, setLongPressTriggered] = useState(false)
   const {
     temperatureData,
+    isTempMetric,
     setIsTempMetric,
     containerRef,
     graphData,
@@ -96,8 +97,11 @@ const Temperature = () => {
             ? formattedTemperature(feelsLikeTemperature)
             : formattedTemperature(temperature)}
         </div>
-        <div className="relative top-2 text-5xl leading-none md:text-6xl">
-          °
+        <div className="relative top-2 flex items-start leading-none">
+          <span className="text-5xl md:text-6xl">°</span>
+          <span className="text-3xl font-light md:text-4xl">
+            {isTempMetric ? 'C' : 'F'}
+          </span>
         </div>
       </div>
       <div className="flex justify-between gap-3">
