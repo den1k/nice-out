@@ -3,7 +3,7 @@
 import { QueryClient } from '@tanstack/react-query'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
-import { ReactNode } from 'react'
+import { ReactNode, useEffect } from 'react'
 import { GlobalContextProvider } from './GlobalContext'
 
 const queryClient = new QueryClient({
@@ -23,10 +23,20 @@ export default function Providers({
 }: Readonly<{
   children: ReactNode
 }>) {
+  useEffect(() => {
+    if (
+      typeof navigator !== 'undefined' &&
+      navigator.storage &&
+      typeof navigator.storage.persist === 'function'
+    ) {
+      navigator.storage.persist().catch(() => {})
+    }
+  }, [])
+
   return (
     <PersistQueryClientProvider
       client={queryClient}
-      persistOptions={{ persister }}
+      persistOptions={{ persister, maxAge: Infinity }}
     >
       {' '}
       <GlobalContextProvider>{children}</GlobalContextProvider>
