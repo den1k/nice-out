@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react'
-import useAnalytics from './useAnalytics'
 import { GeoLocationData } from '@/types/weatherKit'
 
 export const useLocation = () => {
-  const { trackMissingLocation } = useAnalytics()
   const [location, setLocation] = useState<GeoLocationData | null>(null)
 
   useEffect(() => {
@@ -17,14 +15,10 @@ export const useLocation = () => {
         },
         (err) => {
           console.error('Error getting location', err)
-          trackMissingLocation({
-            errorCode: err.code,
-            errorMessage: err.message,
-          })
         },
       )
     }
-  }, [location, trackMissingLocation])
+  }, [location])
 
   return location
 }
