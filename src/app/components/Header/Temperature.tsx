@@ -42,6 +42,21 @@ const Temperature = () => {
     return '-'
   }
 
+  const displayTemperature = isFeelsLikeTemperature
+    ? formattedTemperature(feelsLikeTemperature)
+    : formattedTemperature(temperature)
+
+  // Scale the hero number down as it gets wider so a 3-digit reading
+  // (e.g. 100°F, or a negative like -12°) never overflows the fixed-width
+  // Temperature column. Sizes are tuned so 3 digits occupy the same footprint
+  // a 2-digit value does today.
+  const heroSizeClass =
+    String(displayTemperature).length >= 4
+      ? 'text-6xl md:text-7xl'
+      : String(displayTemperature).length === 3
+        ? 'text-[5rem] md:text-8xl'
+        : 'text-[7.5rem] md:text-9xl'
+
   const handleTemperatureTypeChange = () => {
     setIsFeelsLikeTemperature((prev) => !prev)
   }
@@ -92,10 +107,8 @@ const Temperature = () => {
           'flex cursor-pointer gap-0 font-thin md:gap-1',
         )}
       >
-        <div className="text-[7.5rem] leading-none md:text-9xl">
-          {isFeelsLikeTemperature
-            ? formattedTemperature(feelsLikeTemperature)
-            : formattedTemperature(temperature)}
+        <div className={clsx(heroSizeClass, 'leading-none transition-all')}>
+          {displayTemperature}
         </div>
         <div className="relative top-2 flex items-start leading-none">
           <span className="text-5xl md:text-6xl">°</span>
