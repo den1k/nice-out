@@ -1,5 +1,6 @@
 import { GeoLocationData, WeatherData } from '@/types/weatherKit'
 import { useQuery } from '@tanstack/react-query'
+import useAnalytics from '@/hooks/useAnalytics'
 import { HttpError } from '@/utils/httpError'
 
 type GetWeatherDataArgs = {
@@ -12,6 +13,7 @@ export const useWeatherData = ({
 }: {
   location: GeoLocationData | null
 }) => {
+  const { trackRequestError, trackRequestCompleted } = useAnalytics()
   const formatedLat =
     Number(location?.coords?.latitude?.toFixed(3)) || location?.coords?.latitude
 
@@ -39,6 +41,12 @@ export const useWeatherData = ({
       }
     } catch (err) {
       if (err instanceof HttpError) {
+        trackRequestError({
+          lat: formatedLat,
+          lon: formatedLong,
+          errorCode: err.status,
+          errorMessage: err.message,
+        })
         throw err
       } else {
         console.log(err)
@@ -83,6 +91,7 @@ export const useWeatherData = ({
       }
 
       const json = await res.json()
+      trackRequestCompleted({ lat, lon })
 
       return {
         timezone: timeZone,
@@ -106,6 +115,12 @@ export const useWeatherData = ({
     } catch (err) {
       console.log(err)
       if (err instanceof HttpError) {
+        trackRequestError({
+          lat,
+          lon,
+          errorCode: err.status,
+          errorMessage: err.message,
+        })
         throw err
       } else if (err) {
         throw err
