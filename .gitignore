@@ -41,3 +41,6 @@ public/sw.js
 # Local deploy artifacts (do not commit)
 AuthKey*.p8
 package-lock.json
+
+# Claude worktrees
+.claude/worktrees/
