@@ -7,7 +7,9 @@ import {
   DailyWeather,
   WeatherInfo,
   cachedLocation,
+  GeoLocationData,
 } from '@/types/weatherKit'
+import { usePathname } from 'next/navigation'
 import React, {
   RefObject,
   createContext,
@@ -117,6 +119,42 @@ const readUnitPref = (key: string) => {
   return legacy === null ? true : legacy === 'true'
 }
 
+// Shareable-link state parsed from the URL query string, e.g.
+// /?lat=40.694&lon=-73.99&name=Brooklyn&temp=f&dist=mi
+// Each param is optional and validated independently; a bare URL yields all nulls.
+type UrlState = {
+  location: GeoLocationData | null
+  isTempMetric: boolean | null
+  isDistanceMetric: boolean | null
+}
+
+const readUrlState = (): UrlState => {
+  const empty = { location: null, isTempMetric: null, isDistanceMetric: null }
+  if (typeof window === 'undefined') return empty
+  const params = new URLSearchParams(window.location.search)
+  const lat = Number(params.get('lat'))
+  const lon = Number(params.get('lon'))
+  const hasCoords =
+    params.has('lat') &&
+    params.has('lon') &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lon) &&
+    Math.abs(lat) <= 90 &&
+    Math.abs(lon) <= 180
+  const temp = params.get('temp')
+  const dist = params.get('dist')
+  return {
+    location: hasCoords
+      ? {
+          coords: { latitude: lat, longitude: lon },
+          name: params.get('name') || undefined,
+        }
+      : null,
+    isTempMetric: temp === 'c' ? true : temp === 'f' ? false : null,
+    isDistanceMetric: dist === 'km' ? true : dist === 'mi' ? false : null,
+  }
+}
+
 export const GlobalContextProvider = ({
   children,
 }: {
@@ -127,12 +165,15 @@ export const GlobalContextProvider = ({
   const [savedCurrentDayBreaks, setSavedCurrentDayBreaks] = useState<
     GraphData['dayBreaks'][0] | undefined
   >()
-  // Independent unit preferences, each defaulting to metric (or the legacy choice)
-  const [isTempMetric, setIsTempMetric] = useState(() =>
-    readUnitPref(TEMP_UNIT_KEY),
+  // Shareable-link params, parsed once on first client render
+  const [urlState] = useState(readUrlState)
+  // Independent unit preferences: URL params win, then localStorage (or the
+  // legacy combined choice), then metric
+  const [isTempMetric, setIsTempMetric] = useState(
+    () => urlState.isTempMetric ?? readUnitPref(TEMP_UNIT_KEY),
   )
-  const [isDistanceMetric, setIsDistanceMetric] = useState(() =>
-    readUnitPref(DISTANCE_UNIT_KEY),
+  const [isDistanceMetric, setIsDistanceMetric] = useState(
+    () => urlState.isDistanceMetric ?? readUnitPref(DISTANCE_UNIT_KEY),
   )
 
   // Persist each preference independently when it changes
@@ -149,11 +190,15 @@ export const GlobalContextProvider = ({
   const [currentNoonValue, setCurrentNoonValue] = useState<number | null>(null)
 
   useEffect(() => {
+    // A shared link's location must beat the previously active one; skip the
+    // restore and let the URL location become active once its weather loads
+    if (urlState.location) return
     if (typeof window !== 'undefined') {
       const storedActiveLocation =
         localStorage.getItem('activeLocationId') || null
       setActiveLocationId(storedActiveLocation)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const cachedLocations = useCachedLocations({ activeLocationId })
@@ -162,7 +207,10 @@ export const GlobalContextProvider = ({
   const findLocation = cachedLocations?.find(
     (location) => location.queryData.locationId === activeLocationId,
   )?.queryData.location
-  const activeLocation = findLocation || location
+  // Once the URL location's weather loads it becomes the active cached
+  // location, so findLocation shadows it from then on and switching
+  // locations works as usual. GPS stays the last fallback.
+  const activeLocation = findLocation || urlState.location || location
 
   const {
     data: weatherData,
@@ -180,6 +228,31 @@ export const GlobalContextProvider = ({
       setActiveLocationId(weatherData?.locationId)
     }
   }, [weatherData])
+
+  // Keep the home-page URL shareable: mirror the active location and unit
+  // choices into the query string so a copied link reproduces this view
+  const pathname = usePathname()
+  useEffect(() => {
+    if (pathname !== '/' || !weatherData?.location?.coords) return
+    const { latitude, longitude } = weatherData.location.coords
+    if (latitude === undefined || longitude === undefined) return
+    const params = new URLSearchParams(window.location.search)
+    params.set('lat', String(latitude))
+    params.set('lon', String(longitude))
+    if (weatherData.locationName) {
+      params.set('name', weatherData.locationName)
+    } else {
+      params.delete('name')
+    }
+    params.set('temp', isTempMetric ? 'c' : 'f')
+    params.set('dist', isDistanceMetric ? 'km' : 'mi')
+    const next = `${pathname}?${params.toString()}`
+    if (next !== window.location.pathname + window.location.search) {
+      // Native replaceState keeps Next 14.1's router in sync and adds no
+      // history entries; preserve the router's state object
+      window.history.replaceState(window.history.state, '', next)
+    }
+  }, [pathname, weatherData, isTempMetric, isDistanceMetric])
 
   const mainChart = useRef<SVGSVGElement>(null)
   const lineRef = useRef<SVGPathElement>(null)
