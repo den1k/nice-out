@@ -1,89 +1,66 @@
-'use client'
+import type { Metadata } from 'next'
+import HomeClient from './components/HomeClient'
+import {
+  parseShareCardParams,
+  getShareCardData,
+} from '@/lib/weatherkit-server'
 
-import { useGlobalContext } from '@/lib/GlobalContext'
-import Background from './components/Background'
-import Graph from './components/Graph/Graph'
-import Header from './components/Header'
-import Footer from './components/Footer'
-import AnimatedBackground from './components/AnimatedBackground'
-import { useState } from 'react'
-import CustomPrompt from './components/CustomPrompt'
+const BASE_URL = 'https://niceout.vimsical.com'
+
+type Props = {
+  searchParams: { [key: string]: string | string[] | undefined }
+}
+
+// Shared links (/?lat=..&lon=..&name=..&temp=..&dist=..) get live per-location
+// OG tags so iMessage/WhatsApp/etc render a weather card; a bare / keeps the
+// generic app metadata from the root layout. Reading searchParams makes this
+// route server-rendered per request — required for per-link tags, and the
+// page itself stays a pure client component.
+export async function generateMetadata({
+  searchParams,
+}: Props): Promise<Metadata> {
+  const params = parseShareCardParams(searchParams)
+  if (!params) return {}
+  try {
+    const card = await getShareCardData(params)
+    const place = card.name || 'Shared forecast'
+    const title = `${place} — ${card.temperature}°${card.tempUnit}, ${card.condition}`
+    const description = `H ${card.high}° · L ${card.low}° · Feels like ${card.feelsLike}° · Humidity ${card.humidity}% — live weather on Nice Out`
+
+    const shareParams = new URLSearchParams({
+      lat: params.lat,
+      lon: params.lon,
+      temp: params.isTempMetric ? 'c' : 'f',
+      dist: params.isDistanceMetric ? 'km' : 'mi',
+    })
+    if (params.name) shareParams.set('name', params.name)
+    const imageUrl = `${BASE_URL}/api/og?${shareParams.toString()}`
+
+    return {
+      // absolute: skip the root layout's "%s - PWA" title template
+      title: { absolute: title },
+      description,
+      openGraph: {
+        type: 'website',
+        siteName: 'Nice Out',
+        url: `${BASE_URL}/?${shareParams.toString()}`,
+        title: { absolute: title },
+        description,
+        images: [{ url: imageUrl, width: 1200, height: 630 }],
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title: { absolute: title },
+        description,
+        images: [imageUrl],
+      },
+    }
+  } catch {
+    // Never break the page over preview metadata; fall back to layout defaults
+    return {}
+  }
+}
 
 export default function Home() {
-  const {
-    isItDay,
-    timestamp,
-    handleAnimation,
-    containerRef,
-    graphData,
-    weatherData,
-    savedCurrentDayBreaks,
-    initialGradient,
-  } = useGlobalContext()
-
-  const [isDragging, setIsDragging] = useState<boolean>(false)
-  const [startX, setStartX] = useState<number>(0)
-  const [scrollLeft, setScrollLeft] = useState<number>(0)
-
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!containerRef.current) return
-    setIsDragging(true)
-    setStartX(e.pageX - containerRef.current.offsetLeft)
-    setScrollLeft(containerRef?.current?.scrollLeft)
-  }
-
-  const handleMouseLeave = () => {
-    setIsDragging(false)
-  }
-
-  const handleMouseUp = () => {
-    setIsDragging(false)
-  }
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isDragging || !containerRef?.current) {
-      return
-    }
-    e.preventDefault()
-    const x = e.pageX - containerRef?.current?.offsetLeft
-    const walk = (x - startX) * 1 // Scroll-fast (adjust multiplier for speed)
-    containerRef.current.scrollLeft = scrollLeft - walk // Scroll the container
-  }
-
-  return (
-    <main
-      ref={containerRef}
-      onScroll={handleAnimation}
-      className="flex h-svh select-none flex-col justify-end overflow-y-hidden overflow-x-scroll"
-      id="scroll1px"
-      onMouseDown={handleMouseDown}
-      onMouseLeave={handleMouseLeave}
-      onMouseUp={handleMouseUp}
-      onMouseMove={handleMouseMove}
-    >
-      <CustomPrompt />
-      <Header />
-      <Graph />
-      <Footer />
-      {weatherData?.hourly ? (
-        <AnimatedBackground
-          icon={timestamp.icon}
-          id="chart-bg-gradient"
-          isItDay={isItDay}
-          containerRef={containerRef}
-          graphData={graphData}
-          weatherData={weatherData}
-          savedCurrentDayBreaks={savedCurrentDayBreaks}
-          initialGradient={initialGradient}
-          timestamp={timestamp}
-        />
-      ) : (
-        <Background
-          icon={timestamp.icon}
-          id="chart-bg-gradient"
-          isItDay={isItDay}
-        />
-      )}
-    </main>
-  )
+  return <HomeClient />
 }
