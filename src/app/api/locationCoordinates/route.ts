@@ -30,13 +30,18 @@ export async function GET(req: Request) {
         return component.types.includes('sublocality')
       },
     )?.long_name
+    const countryName = address_components.find(
+      (component: { types: string | string[] }) => {
+        return component.types.includes('country')
+      },
+    )?.long_name
     const coords = {
       latitude: geometry.location.lat,
       longitude: geometry.location.lng,
     }
     const data = {
       coords,
-      name: cityName || subLocalityName,
+      name: cityName || subLocalityName || countryName,
       googleLocationID,
       isCurrentlocation: false,
     }
