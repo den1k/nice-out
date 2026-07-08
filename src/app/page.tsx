@@ -11,16 +11,43 @@ type Props = {
   searchParams: { [key: string]: string | string[] | undefined }
 }
 
+// Branded tags + card for the bare base URL (and for any metadata failure),
+// so https://niceout.vimsical.com/ itself unfurls nicely in messengers
+const brandMetadata = (): Metadata => {
+  const title = 'Nice Out'
+  const description =
+    'Is it nice out? A beautiful hour-by-hour forecast, seven days out.'
+  const imageUrl = `${BASE_URL}/api/og`
+  return {
+    title: { absolute: title },
+    description,
+    openGraph: {
+      type: 'website',
+      siteName: 'Nice Out',
+      url: `${BASE_URL}/`,
+      title: { absolute: title },
+      description,
+      images: [{ url: imageUrl, width: 1200, height: 630 }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: { absolute: title },
+      description,
+      images: [imageUrl],
+    },
+  }
+}
+
 // Shared links (/?lat=..&lon=..&name=..&temp=..&dist=..) get live per-location
-// OG tags so iMessage/WhatsApp/etc render a weather card; a bare / keeps the
-// generic app metadata from the root layout. Reading searchParams makes this
-// route server-rendered per request — required for per-link tags, and the
-// page itself stays a pure client component.
+// OG tags so iMessage/WhatsApp/etc render a weather card; a bare / gets the
+// branded card. Reading searchParams makes this route server-rendered per
+// request — required for per-link tags, and the page itself stays a pure
+// client component.
 export async function generateMetadata({
   searchParams,
 }: Props): Promise<Metadata> {
   const params = parseShareCardParams(searchParams)
-  if (!params) return {}
+  if (!params) return brandMetadata()
   try {
     const card = await getShareCardData(params)
     const place = card.name || 'Shared forecast'
@@ -56,8 +83,8 @@ export async function generateMetadata({
       },
     }
   } catch {
-    // Never break the page over preview metadata; fall back to layout defaults
-    return {}
+    // Never break the page over preview metadata
+    return brandMetadata()
   }
 }
 

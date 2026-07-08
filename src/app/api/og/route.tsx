@@ -158,6 +158,86 @@ const Card = ({ card }: { card: ShareCardData }) => {
   )
 }
 
+// Brand card for the bare base URL — no location, so lean on the app's
+// visual identity: clear-day gradient, a temperature-curve motif with the
+// app's scrubber dot, and the thin wordmark.
+const BrandCard = () => (
+  <div
+    style={{
+      width: '100%',
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'space-between',
+      padding: '64px 72px 48px',
+      backgroundImage:
+        'linear-gradient(to bottom, #c1c8d1, #8daac0, #cfb5ae, #e0b6ac, #c38171, #ca927a)',
+      fontFamily: 'Roboto',
+      color: '#ffffff',
+    }}
+  >
+    <div
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: WIDTH,
+        height: HEIGHT,
+        backgroundImage:
+          'linear-gradient(to bottom, rgba(0,0,0,0.12), rgba(0,0,0,0.18), rgba(0,0,0,0.36))',
+      }}
+    />
+    {/* temperature-graph motif, echoing the app's hourly curve */}
+    <svg
+      width={WIDTH}
+      height={HEIGHT}
+      viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+      style={{ position: 'absolute', top: 0, left: 0 }}
+    >
+      <path
+        d="M -40 470 C 180 380, 320 500, 560 420 C 780 348, 920 300, 1240 380"
+        fill="none"
+        stroke="rgba(255,255,255,0.55)"
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
+      <circle cx="560" cy="420" r="11" fill="#ffffff" />
+    </svg>
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      <div style={{ fontSize: 120, fontWeight: 100, lineHeight: 1.05 }}>
+        Nice Out
+      </div>
+      <div
+        style={{
+          fontSize: 38,
+          fontWeight: 300,
+          marginTop: 18,
+          color: 'rgba(255,255,255,0.78)',
+        }}
+      >
+        Is it nice out? A beautiful hour-by-hour forecast.
+      </div>
+    </div>
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'flex-end',
+        alignItems: 'baseline',
+      }}
+    >
+      <div
+        style={{
+          fontSize: 25,
+          fontWeight: 400,
+          color: 'rgba(255,255,255,0.6)',
+        }}
+      >
+        niceout.vimsical.com
+      </div>
+    </div>
+  </div>
+)
+
 // Weather-less fallback so a bad upstream still yields a branded card
 const FallbackCard = ({ name }: { name: string | null }) => (
   <div
@@ -200,10 +280,11 @@ const FallbackCard = ({ name }: { name: string | null }) => (
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
+  const wantsBrandCard = !searchParams.has('lat') && !searchParams.has('lon')
   const params = parseShareCardParams(
     Object.fromEntries(searchParams.entries()),
   )
-  if (!params) {
+  if (!params && !wantsBrandCard) {
     return new Response(JSON.stringify({ error: 'Invalid coordinates' }), {
       status: 400,
     })
@@ -227,20 +308,32 @@ export async function GET(req: Request) {
   // Buffer the PNG so satori render errors surface inside the try block —
   // ImageResponse streams lazily and would otherwise fail after we return.
   // Also replace ImageResponse's default year-long immutable Cache-Control:
-  // the card shows live weather, so cache it like the app's 15-min staleTime
-  const materialize = async (image: ImageResponse) => {
+  // weather cards cache like the app's 15-min staleTime; the static brand
+  // card can live a day
+  const materialize = async (image: ImageResponse, maxAge: number) => {
     const headers = new Headers(image.headers)
-    headers.set('Cache-Control', 'public, max-age=900, s-maxage=900')
+    headers.set(
+      'Cache-Control',
+      `public, max-age=${maxAge}, s-maxage=${maxAge}`,
+    )
     return new Response(await image.arrayBuffer(), { headers })
+  }
+
+  if (!params) {
+    return materialize(new ImageResponse(<BrandCard />, options), 86400)
   }
 
   try {
     const card = await getShareCardData(params)
-    return await materialize(new ImageResponse(<Card card={card} />, options))
+    return await materialize(
+      new ImageResponse(<Card card={card} />, options),
+      900,
+    )
   } catch (error) {
     console.log('og card fallback:', error)
     return materialize(
       new ImageResponse(<FallbackCard name={params.name} />, options),
+      900,
     )
   }
 }
