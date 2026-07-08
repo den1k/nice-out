@@ -4,6 +4,7 @@ import { useGlobalContext } from '@/lib/GlobalContext'
 import WeatherIcon from '../components/Icon'
 import { LocationInfoCard } from '../components/LocationInfoCard'
 import SettingsPanel from '../components/SettingsPanel'
+import InstallCTA from '../components/InstallCTA'
 import Link from 'next/link'
 import { cachedLocation } from '@/types/weatherKit'
 import { useCachedLocations } from '@/hooks/useGetCachedLocations'
@@ -87,6 +88,9 @@ const Locations = () => {
           </div>
           <SettingsPanel />
         </section>
+
+        {/* Add to Home Screen (hidden when already installed) */}
+        <InstallCTA />
 
         {/* Locations */}
         <section className="animate-fade-in">

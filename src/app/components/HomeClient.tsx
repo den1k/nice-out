@@ -7,7 +7,6 @@ import Header from './Header'
 import Footer from './Footer'
 import AnimatedBackground from './AnimatedBackground'
 import { useState } from 'react'
-import CustomPrompt from './CustomPrompt'
 
 export default function HomeClient() {
   const {
@@ -61,7 +60,6 @@ export default function HomeClient() {
       onMouseUp={handleMouseUp}
       onMouseMove={handleMouseMove}
     >
-      <CustomPrompt />
       <Header />
       <Graph />
       <Footer />
