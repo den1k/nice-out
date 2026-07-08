@@ -8,7 +8,7 @@ export async function GET(req: Request) {
     if (!process.env.GOOGLE_API)
       throw new HttpError('Missing Open Weather Credentials', 400)
 
-    const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${searchTerm}&types=locality|postal_code|sublocality&key=${process.env.GOOGLE_API}`
+    const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${searchTerm}&types=locality|postal_code|sublocality|country&key=${process.env.GOOGLE_API}`
 
     // get the data
     const response = await fetch(url, {
