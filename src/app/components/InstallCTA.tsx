@@ -46,16 +46,16 @@ const InstallCTA = () => {
               <PhoneIcon />
             </span>
             <div className="flex min-w-0 flex-col gap-1">
-              <span className="truncate text-[15px] font-medium leading-none text-white">
+              <span className="text-[15px] font-medium leading-snug text-white">
                 Add to Home Screen
               </span>
-              <span className="truncate text-[11px] uppercase tracking-[0.12em] text-white/40">
+              <span className="text-[11px] uppercase leading-snug tracking-[0.12em] text-white/40">
                 Works like an app
               </span>
             </div>
           </div>
           <span className="flex shrink-0 items-center justify-center whitespace-nowrap rounded-full bg-white/25 px-3.5 py-1.5 text-[13px] font-medium leading-none text-white ring-1 ring-inset ring-white/10 transition-colors group-hover:bg-white/30">
-            Show me how
+            Show me
           </span>
         </button>
       </div>
