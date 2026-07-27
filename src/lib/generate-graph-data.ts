@@ -30,9 +30,8 @@ export const generateGraphData = (
   const hourlyWeather = weatherData.hourly
 
   // Removing extradata from graph to stop it after 11:59PM of last day
-  const lastDayTime = moment
-    .tz(dailyWeather[7].forecastStart, timeZone)
-    .valueOf()
+  const lastDay = dailyWeather[7] ?? dailyWeather[dailyWeather.length - 1]
+  const lastDayTime = moment.tz(lastDay.forecastStart, timeZone).valueOf()
   const lastTimeInData = moment
     .tz(hourlyWeather.at(-1)?.forecastStart ?? '', timeZone)
     .valueOf()
@@ -41,22 +40,32 @@ export const generateGraphData = (
     .tz(hourlyWeather.at(0)?.forecastStart ?? '', timeZone)
     .valueOf()
 
-  const currentTime = moment().tz(timeZone).valueOf()
-  const currentDayStartTime = moment().tz(timeZone).startOf('day').valueOf()
+  // Anchor trimming to the data's own first forecast day, NOT the wall clock.
+  // The react-query cache is persisted with maxAge: Infinity, so this function
+  // can run on a payload fetched days ago; a wall-clock anchor then slices the
+  // hourly array to empty and every bisect lookup below crashes the app.
+  const dataDayStartTime = moment
+    .tz(dailyWeather[0].forecastStart, timeZone)
+    .startOf('day')
+    .valueOf()
 
   // Apple weatherKit gives data from 23:00 of the previous day
   // get extra elapsed hours (extra data in the start)
-  const extraElapsedHours =
-    Math.abs(firstTimeInData - currentDayStartTime) / 3600000
+  const extraElapsedHours = Math.max(
+    0,
+    Math.round((dataDayStartTime - firstTimeInData) / 3600000),
+  )
 
   // extra hours at the end
   const extraHours = (lastTimeInData - lastDayTime) / 3600000 // converting extratime difference into hours
 
   // hourly weather is starting from previous days 23:00
-  const sevenDayHourly =
+  const trimmedHourly =
     extraHours > 0
       ? hourlyWeather.slice(extraElapsedHours).slice(0, -1 * extraHours)
-      : hourlyWeather
+      : hourlyWeather.slice(extraElapsedHours)
+  // Never let the graph run on an empty array — fall back to the full range
+  const sevenDayHourly = trimmedHourly.length > 0 ? trimmedHourly : hourlyWeather
 
   const formattedValues = sevenDayHourly.map(
     (reading: { temperature: number; forecastStart: string | number | Date }) =>
