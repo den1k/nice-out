@@ -6,7 +6,7 @@ import PopChart from './PopChart'
 import Loader from '../Loader'
 
 const Graph = () => {
-  const { graphData, handleAnimation } = useGlobalContext()
+  const { graphData, handleAnimation, error } = useGlobalContext()
 
   useEffect(() => {
     handleAnimation()
@@ -15,7 +15,16 @@ const Graph = () => {
   if (!graphData) {
     return (
       <div className="grid h-full place-items-center">
-        <Loader />
+        {error ? (
+          <p
+            role="alert"
+            className="px-8 text-center text-sm font-light text-white/90"
+          >
+            The forecast is unavailable right now. Try again in a minute.
+          </p>
+        ) : (
+          <Loader />
+        )}
       </div>
     )
   }

@@ -133,5 +133,11 @@ export const useWeatherData = ({
     gcTime: Infinity, // dont delete cache ever
   })
 
-  return query
+  // A failed name lookup leaves the weather query disabled, so it would never
+  // report an error of its own
+  return {
+    data: query.data,
+    isLoading: query.isLoading,
+    error: query.error ?? locationInfoQuery.error,
+  }
 }

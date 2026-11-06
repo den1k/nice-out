@@ -82,12 +82,16 @@ const CloseGlyph = ({ className }: { className?: string }) => (
   </svg>
 )
 
+const SEARCH_DEBOUNCE_MS = 300
+
 const Search = () => {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
   const [searchResults, setSearchResults] = useState([{ description: '' }])
   const [newLocation, setnewLocation] = useState<any>(null)
   const [selecting, setSelecting] = useState(false)
+  const [searchFailed, setSearchFailed] = useState(false)
+  const [selectFailed, setSelectFailed] = useState(false)
   const { activeLocationId, initialGradient } = useGlobalContext()
 
   const cachedLocations = useCachedLocations({ activeLocationId })
@@ -95,11 +99,21 @@ const Search = () => {
   useEffect(() => {
     if (searchTerm?.split('').length === 0) {
       setSearchResults([{ description: '' }])
+      setSearchFailed(false)
     } else if (searchTerm?.split('').length > 2) {
-      ;(async () => {
+      // Each call is billed and counts against the per-client limit, so wait
+      // for a pause in typing, and let only the latest term's answer land
+      let current = true
+      const timer = setTimeout(async () => {
         const result = await fetchSearchLocations(searchTerm)
-        setSearchResults(result)
-      })()
+        if (!current) return
+        setSearchFailed(result === null)
+        setSearchResults(result ?? [])
+      }, SEARCH_DEBOUNCE_MS)
+      return () => {
+        current = false
+        clearTimeout(timer)
+      }
     }
   }, [searchTerm])
 
@@ -110,6 +124,7 @@ const Search = () => {
   const clearSearch = () => {
     setSearchTerm('')
     setSearchResults([{ description: '' }])
+    setSearchFailed(false)
   }
 
   const handleSelection = async (r: {
@@ -123,16 +138,30 @@ const Search = () => {
 
     if (!isItSaved) {
       setSelecting(true)
+      setSelectFailed(false)
       const details = await fetchLocationCoordinates(r.place_id)
-      setnewLocation(details)
+      if (details) {
+        setnewLocation(details)
+      } else {
+        setSelecting(false)
+        setSelectFailed(true)
+      }
     } else {
       router.push('/locations')
     }
   }
 
-  const { data, isLoading } = useWeatherData({
+  const { data, isLoading, error } = useWeatherData({
     location: newLocation,
   })
+
+  useEffect(() => {
+    // Older data from an earlier visit still counts as a success
+    if (!newLocation || !error || data) return
+    setnewLocation(null)
+    setSelecting(false)
+    setSelectFailed(true)
+  }, [newLocation, error, data])
 
   useEffect(() => {
     if (!isLoading && newLocation && data) {
@@ -195,6 +224,15 @@ const Search = () => {
           )}
         </div>
 
+        {selectFailed && (
+          <p
+            role="alert"
+            className="animate-fade-in mb-4 rounded-2xl border border-white/10 bg-white/[0.07] px-5 py-3.5 text-sm font-light text-white/90"
+          >
+            Couldn&apos;t get that place&apos;s forecast. Try again in a minute.
+          </p>
+        )}
+
         {/* Results / empty states */}
         <div className="flex-1 overflow-y-auto pb-12">
           {hasResults ? (
@@ -220,12 +258,18 @@ const Search = () => {
                 <SearchIcon className="h-7 w-7 text-white/40" />
               </div>
               <p className="mt-5 text-[17px] font-light text-white/80">
-                {isSearching ? 'No matches found' : 'Find your weather'}
+                {searchFailed
+                  ? 'Search is unavailable'
+                  : isSearching
+                    ? 'No matches found'
+                    : 'Find your weather'}
               </p>
               <p className="mt-1.5 max-w-[16rem] text-sm font-light leading-relaxed text-white/45">
-                {isSearching
-                  ? `We couldn't find a place for “${searchTerm.trim()}”. Try another spelling.`
-                  : 'Start typing a city name or ZIP code to add it to your locations.'}
+                {searchFailed
+                  ? 'Try again in a minute.'
+                  : isSearching
+                    ? `We couldn't find a place for “${searchTerm.trim()}”. Try another spelling.`
+                    : 'Start typing a city name or ZIP code to add it to your locations.'}
               </p>
             </div>
           )}

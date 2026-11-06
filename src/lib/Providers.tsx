@@ -5,11 +5,13 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
 import { ReactNode, useEffect } from 'react'
 import { GlobalContextProvider } from './GlobalContext'
+import { shouldRetryQuery } from '@/utils/httpError'
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       gcTime: 1000 * 60 * 15, // 15 min
+      retry: shouldRetryQuery,
     },
   },
 })
