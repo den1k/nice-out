@@ -1,3 +1,4 @@
+import type { JSX } from 'react'
 import BsArrowDown from '@/assets/svg/weather/BsArrowDown.svg'
 import BsArrowUp from '@/assets/svg/weather/BsArrowUp.svg'
 import BsLightRain from '@/assets/svg/weather/BsCloudDrizzle.svg'

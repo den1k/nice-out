@@ -37,11 +37,11 @@ interface GlobalContextValue {
   error: Error | null | unknown
   isLoading: boolean
   graphData: GraphData | undefined
-  mainChart: RefObject<SVGSVGElement>
-  lineRef: RefObject<SVGPathElement>
-  circleRef: RefObject<SVGCircleElement>
-  groupRef: RefObject<SVGGElement>
-  containerRef: RefObject<HTMLDivElement>
+  mainChart: RefObject<SVGSVGElement | null>
+  lineRef: RefObject<SVGPathElement | null>
+  circleRef: RefObject<SVGCircleElement | null>
+  groupRef: RefObject<SVGGElement | null>
+  containerRef: RefObject<HTMLDivElement | null>
   timestamp: {
     graphTimeStamp: number
     time: string

@@ -10,7 +10,7 @@ import {
 const BASE_URL = 'https://niceout.vimsical.com'
 
 type Props = {
-  searchParams: { [key: string]: string | string[] | undefined }
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }
 
 // Branded tags + card for the bare base URL (and for any metadata failure),
@@ -48,8 +48,8 @@ const brandMetadata = (): Metadata => {
 export async function generateMetadata({
   searchParams,
 }: Props): Promise<Metadata> {
-  const params = parseShareCardParams(searchParams)
-  if (!params || !allowClient(headers())) return brandMetadata()
+  const params = parseShareCardParams(await searchParams)
+  if (!params || !allowClient(await headers())) return brandMetadata()
   try {
     const card = await getShareCardData(params)
     const place = card.name || 'Shared forecast'

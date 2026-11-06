@@ -1,11 +1,11 @@
 import { NextRequest } from 'next/server'
 import { describe, expect, it } from 'vitest'
-import { middleware } from './middleware'
+import { proxy } from './proxy'
 
 const at = (method: string) =>
-  middleware(new NextRequest('http://x.test/', { method }))
+  proxy(new NextRequest('http://x.test/', { method }))
 
-describe('middleware', () => {
+describe('proxy', () => {
   it.each(['POST', 'PUT', 'PATCH', 'DELETE'])('refuses %s', (method) => {
     expect(at(method).status).toBe(405)
   })

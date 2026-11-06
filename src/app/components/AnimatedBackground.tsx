@@ -33,7 +33,7 @@ const AnimatedBackground = ({
   isItDay: boolean
   card?: boolean
   colors?: string[]
-  containerRef: RefObject<HTMLDivElement>
+  containerRef: RefObject<HTMLDivElement | null>
   graphData: GraphData | undefined
   weatherData: WeatherData
   savedCurrentDayBreaks: GraphData['dayBreaks'][0] | undefined
