@@ -1,12 +1,23 @@
 import { HttpError } from '@/utils/httpError'
+import {
+  allowClient,
+  isValidPlaceId,
+  spendProviderBudget,
+  tooManyRequests,
+} from '@/lib/api-guards'
 
 export async function GET(req: Request) {
+  if (!allowClient(req.headers)) return tooManyRequests()
   try {
     const { searchParams } = new URL(req.url)
     const googleLocationID = searchParams.get('id')
+    if (!isValidPlaceId(googleLocationID))
+      throw new HttpError('Invalid place id', 400)
 
     if (!process.env.GOOGLE_API)
       throw new HttpError('Missing Open Weather Credentials', 400)
+
+    spendProviderBudget('google')
 
     const fetchCoords = await fetch(
       `https://maps.googleapis.com/maps/api/geocode/json?place_id=${googleLocationID}&key=${process.env.GOOGLE_API}`,
@@ -55,8 +66,8 @@ export async function GET(req: Request) {
     if (error instanceof HttpError) {
       errorMessage = error.message
       status = error.status
-    } else if (error instanceof Error) {
-      errorMessage = error.message
+    } else {
+      console.error(error)
     }
 
     return new Response(JSON.stringify({ error: errorMessage }), { status })

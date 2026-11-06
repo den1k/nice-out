@@ -26,7 +26,7 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
-.env*.local
+.env*
 
 # vercel
 .vercel
@@ -39,7 +39,7 @@ next-env.d.ts
 # service worker
 public/sw.js
 # Local deploy artifacts (do not commit)
-AuthKey*.p8
+*.p8
 package-lock.json
 
 # Claude worktrees

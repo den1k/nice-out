@@ -1,6 +1,7 @@
 import { ImageResponse } from 'next/og'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
+import { allowClient, boundCardName, tooManyRequests } from '@/lib/api-guards'
 import {
   parseShareCardParams,
   getShareCardData,
@@ -17,6 +18,14 @@ const HEIGHT = 630
 
 const loadFont = (file: string) =>
   readFile(path.join(process.cwd(), 'src/assets/fonts', file))
+
+let fonts: Promise<Buffer[]> | undefined
+const loadFonts = () =>
+  (fonts ??= Promise.all([
+    loadFont('Roboto-Thin.ttf'),
+    loadFont('Roboto-Light.ttf'),
+    loadFont('Roboto-Regular.ttf'),
+  ]))
 
 const Chip = ({ label, value }: { label: string; value: string }) => (
   <div
@@ -279,6 +288,7 @@ const FallbackCard = ({ name }: { name: string | null }) => (
 )
 
 export async function GET(req: Request) {
+  if (!allowClient(req.headers)) return tooManyRequests()
   const { searchParams } = new URL(req.url)
   const wantsBrandCard = !searchParams.has('lat') && !searchParams.has('lon')
   const params = parseShareCardParams(
@@ -290,11 +300,7 @@ export async function GET(req: Request) {
     })
   }
 
-  const [thin, light, regular] = await Promise.all([
-    loadFont('Roboto-Thin.ttf'),
-    loadFont('Roboto-Light.ttf'),
-    loadFont('Roboto-Regular.ttf'),
-  ])
+  const [thin, light, regular] = await loadFonts()
   const options = {
     width: WIDTH,
     height: HEIGHT,
@@ -323,16 +329,17 @@ export async function GET(req: Request) {
     return materialize(new ImageResponse(<BrandCard />, options), 86400)
   }
 
+  const name = boundCardName(params.name)
   try {
     const card = await getShareCardData(params)
     return await materialize(
-      new ImageResponse(<Card card={card} />, options),
+      new ImageResponse(<Card card={{ ...card, name }} />, options),
       900,
     )
   } catch (error) {
     console.log('og card fallback:', error)
     return materialize(
-      new ImageResponse(<FallbackCard name={params.name} />, options),
+      new ImageResponse(<FallbackCard name={name} />, options),
       900,
     )
   }

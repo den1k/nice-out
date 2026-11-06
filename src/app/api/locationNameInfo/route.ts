@@ -1,16 +1,27 @@
 import { HttpError } from '@/utils/httpError'
+import {
+  allowClient,
+  normalizeCoords,
+  spendProviderBudget,
+  tooManyRequests,
+} from '@/lib/api-guards'
 var tzlookup = require('tz-lookup')
 
 export async function GET(req: Request) {
+  if (!allowClient(req.headers)) return tooManyRequests()
   try {
     const { searchParams } = new URL(req.url)
-    const lat = searchParams.get('lat')
-    const lon = searchParams.get('lon')
-    if (!process.env.PRIVATE_KEY)
+    if (!process.env.OPEN_WEATHER_MAP_API_KEY)
       throw new HttpError('Missing Open Weather Credentials', 400)
 
-    if (!lat || !lon) throw new HttpError('Missing Coordinates', 400)
+    const coords = normalizeCoords(
+      searchParams.get('lat'),
+      searchParams.get('lon'),
+    )
+    if (!coords) throw new HttpError('Invalid coordinates', 400)
+    const { lat, lon } = coords
 
+    spendProviderBudget('openweathermap')
     const url = `https://api.openweathermap.org/geo/1.0/reverse?lat=${lat}&lon=${lon}&limit=1&appid=${process.env.OPEN_WEATHER_MAP_API_KEY}`
 
     // get the data
@@ -43,8 +54,8 @@ export async function GET(req: Request) {
     if (error instanceof HttpError) {
       errorMessage = error.message
       status = error.status
-    } else if (error instanceof Error) {
-      errorMessage = error.message
+    } else {
+      console.error(error)
     }
 
     return new Response(JSON.stringify({ error: errorMessage }), { status })

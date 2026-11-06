@@ -1,14 +1,20 @@
 import { HttpError } from '@/utils/httpError'
-import { fetchWeatherKit } from '@/lib/weatherkit-server'
+import { allowClient, normalizeCoords, tooManyRequests } from '@/lib/api-guards'
+import { fetchWeatherKit, isCompleteForecast } from '@/lib/weatherkit-server'
 
 export async function GET(req: Request) {
+  if (!allowClient(req.headers)) return tooManyRequests()
   try {
     const { searchParams } = new URL(req.url)
-    const lat = searchParams.get('lat')
-    const lon = searchParams.get('lon')
-    if (!lat || !lon) throw new HttpError('Missing coordinates', 400)
+    const coords = normalizeCoords(
+      searchParams.get('lat'),
+      searchParams.get('lon'),
+    )
+    if (!coords) throw new HttpError('Invalid coordinates', 400)
 
-    const data = await fetchWeatherKit(lat, lon)
+    const data = await fetchWeatherKit(coords.lat, coords.lon)
+    if (!isCompleteForecast(data))
+      throw new HttpError('Incomplete forecast', 502)
 
     // // return the data to your front end
     return Response.json(data, { status: 200 })
@@ -19,8 +25,8 @@ export async function GET(req: Request) {
     if (error instanceof HttpError) {
       errorMessage = error.message
       status = error.status
-    } else if (error instanceof Error) {
-      errorMessage = error.message
+    } else {
+      console.error(error)
     }
 
     return new Response(JSON.stringify({ error: errorMessage }), { status })

@@ -1,14 +1,28 @@
 import { HttpError } from '@/utils/httpError'
+import {
+  allowClient,
+  spendProviderBudget,
+  tooManyRequests,
+} from '@/lib/api-guards'
+
+const MIN_TERM_LENGTH = 2 // the search page only queries past 2 characters
+const MAX_TERM_LENGTH = 100
 
 export async function GET(req: Request) {
+  if (!allowClient(req.headers)) return tooManyRequests()
   try {
     const { searchParams } = new URL(req.url)
-    const searchTerm = searchParams.get('searchTerm')
+    const searchTerm = searchParams.get('searchTerm')?.trim() ?? ''
+    if (searchTerm.length < MIN_TERM_LENGTH) return Response.json([])
+    if (searchTerm.length > MAX_TERM_LENGTH)
+      throw new HttpError('Search term too long', 400)
 
     if (!process.env.GOOGLE_API)
       throw new HttpError('Missing Open Weather Credentials', 400)
 
-    const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${searchTerm}&types=locality|postal_code|sublocality|country&key=${process.env.GOOGLE_API}`
+    spendProviderBudget('google')
+
+    const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(searchTerm)}&types=locality|postal_code|sublocality|country&key=${process.env.GOOGLE_API}`
 
     // get the data
     const response = await fetch(url, {
@@ -31,8 +45,8 @@ export async function GET(req: Request) {
     if (error instanceof HttpError) {
       errorMessage = error.message
       status = error.status
-    } else if (error instanceof Error) {
-      errorMessage = error.message
+    } else {
+      console.error(error)
     }
 
     return new Response(JSON.stringify({ error: errorMessage }), { status })

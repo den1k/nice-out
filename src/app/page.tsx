@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
+import { headers } from 'next/headers'
 import HomeClient from './components/HomeClient'
+import { allowClient } from '@/lib/api-guards'
 import {
   parseShareCardParams,
   getShareCardData,
@@ -47,7 +49,7 @@ export async function generateMetadata({
   searchParams,
 }: Props): Promise<Metadata> {
   const params = parseShareCardParams(searchParams)
-  if (!params) return brandMetadata()
+  if (!params || !allowClient(headers())) return brandMetadata()
   try {
     const card = await getShareCardData(params)
     const place = card.name || 'Shared forecast'

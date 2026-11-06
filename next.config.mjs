@@ -8,6 +8,9 @@ const withSerwist = withSerwistInit({
   swDest: 'public/sw.js',
 })
 const nextConfig = {
+  // next/image is unused. This makes /_next/image return 404, which closes the
+  // Image Optimization API advisories that Next 14 will not get a patch for.
+  images: { unoptimized: true },
   webpack(config) {
     config.module.rules.push({
       test: /\.svg$/i,

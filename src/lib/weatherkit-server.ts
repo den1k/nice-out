@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken'
 import { HttpError } from '@/utils/httpError'
+import { normalizeCoords, spendProviderBudget } from '@/lib/api-guards'
 import {
   getConvertedTemperature,
   getConvertedWindSpeed,
@@ -19,9 +20,13 @@ export async function fetchWeatherKit(
   lon: string,
   {
     dataSets = 'currentWeather,forecastHourly,forecastDaily',
-    revalidate,
-  }: { dataSets?: string; revalidate?: number } = {},
+  }: { dataSets?: string } = {},
 ) {
+  // Validated here, at the egress point, so no caller can reach another
+  // weatherkit.apple.com path with the operator's token
+  const coords = normalizeCoords(lat, lon)
+  if (!coords) throw new HttpError('Invalid coordinates', 400)
+
   if (
     !process.env.PRIVATE_KEY ||
     !process.env.APP_ID ||
@@ -52,7 +57,9 @@ export async function fetchWeatherKit(
     },
   )
 
-  const url = `https://weatherkit.apple.com/api/v1/weather/en/${lat}/${lon}?dataSets=${dataSets}`
+  spendProviderBudget('weatherkit')
+
+  const url = `https://weatherkit.apple.com/api/v1/weather/en/${coords.lat}/${coords.lon}?dataSets=${dataSets}`
 
   const response = await fetch(url, {
     method: 'GET',
@@ -60,11 +67,10 @@ export async function fetchWeatherKit(
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    // Next's data cache keys on the URL, so a revalidate window dedupes the
-    // crawler-triggered metadata + og-image fetches for the same coords
-    ...(revalidate !== undefined
-      ? { next: { revalidate } }
-      : { cache: 'no-store' as const }),
+    // Not the Next data cache: its key includes headers, so the fresh JWT above
+    // would write a new on-disk entry per call, and it never evicts.
+    // getShareCardData dedupes in memory instead.
+    cache: 'no-store',
   })
 
   if (!response.ok) {
@@ -73,6 +79,13 @@ export async function fetchWeatherKit(
 
   return response.json()
 }
+
+// A payload missing these crashes generate-graph-data, and a persisted one
+// would keep crashing the app on every load
+export const isCompleteForecast = (data: any): boolean =>
+  !!data?.currentWeather &&
+  data.forecastHourly?.hours?.length > 0 &&
+  data.forecastDaily?.days?.length > 0
 
 // ---- Shareable-link preview card data ----
 
@@ -96,22 +109,15 @@ const first = (v: string | string[] | undefined) =>
 export function parseShareCardParams(
   searchParams: SearchParamsLike,
 ): ShareCardParams | null {
-  const latRaw = first(searchParams.lat)
-  const lonRaw = first(searchParams.lon)
-  if (!latRaw || !lonRaw) return null
-  const lat = Number(latRaw)
-  const lon = Number(lonRaw)
-  if (
-    !Number.isFinite(lat) ||
-    !Number.isFinite(lon) ||
-    Math.abs(lat) > 90 ||
-    Math.abs(lon) > 180
+  const coords = normalizeCoords(
+    first(searchParams.lat),
+    first(searchParams.lon),
   )
-    return null
+  if (!coords) return null
   const name = first(searchParams.name)?.trim().slice(0, 60) || null
   return {
-    lat: String(lat),
-    lon: String(lon),
+    lat: coords.lat,
+    lon: coords.lon,
     name,
     isTempMetric: first(searchParams.temp) !== 'f',
     isDistanceMetric: first(searchParams.dist) !== 'mi',
@@ -133,15 +139,41 @@ export type ShareCardData = {
   gradient: string[]
 }
 
-const CARD_REVALIDATE_SECONDS = 900 // match the app's 15-minute weather staleTime
+const CARD_TTL_MS = 900_000 // match the app's 15-minute weather staleTime
+const CARD_CACHE_MAX_ENTRIES = 500
+
+// Dedupes the crawler-triggered metadata + og-image lookups for the same coords.
+// Holds promises so concurrent misses share one upstream call. On globalThis
+// because page and route bundles get separate module instances.
+type CardCache = Map<string, { at: number; weather: Promise<any> }>
+const cardStore = globalThis as unknown as { __niceOutCardCache?: CardCache }
+const cardCache = () => (cardStore.__niceOutCardCache ??= new Map())
+
+export const resetShareCardCacheForTest = () => {
+  cardStore.__niceOutCardCache = new Map()
+}
+
+function cardWeather(lat: string, lon: string): Promise<any> {
+  const cache = cardCache()
+  const key = `${lat},${lon}`
+  const hit = cache.get(key)
+  if (hit && Date.now() - hit.at < CARD_TTL_MS) return hit.weather
+  cache.delete(key)
+  const weather = fetchWeatherKit(lat, lon, {
+    dataSets: 'currentWeather,forecastDaily',
+  })
+  weather.catch(() => cache.delete(key))
+  cache.set(key, { at: Date.now(), weather })
+  // Maps iterate in insertion order, so the first key is the oldest
+  if (cache.size > CARD_CACHE_MAX_ENTRIES)
+    cache.delete(cache.keys().next().value as string)
+  return weather
+}
 
 export async function getShareCardData(
   params: ShareCardParams,
 ): Promise<ShareCardData> {
-  const json = await fetchWeatherKit(params.lat, params.lon, {
-    dataSets: 'currentWeather,forecastDaily',
-    revalidate: CARD_REVALIDATE_SECONDS,
-  })
+  const json = await cardWeather(params.lat, params.lon)
   const current = json.currentWeather
   const today = json.forecastDaily?.days?.[0]
   if (!current) throw new HttpError('No current weather', 502)

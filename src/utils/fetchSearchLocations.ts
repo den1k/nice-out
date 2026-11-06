@@ -1,7 +1,10 @@
 export const fetchSearchLocations = async (searchTerm: string | null) => {
-  const result = await fetch(`/api/locationSearch?searchTerm=${searchTerm}`)
+  const result = await fetch(
+    `/api/locationSearch?searchTerm=${encodeURIComponent(searchTerm ?? '')}`,
+  )
     .then((response) => {
-      return response.json()
+      // The search page expects an array; an error body would crash its filter
+      return response.ok ? response.json() : []
     })
     .then((res) => {
       return res
@@ -13,7 +16,9 @@ export const fetchSearchLocations = async (searchTerm: string | null) => {
 }
 
 export const fetchLocationCoordinates = async (id: string | null) => {
-  const result = await fetch(`/api/locationCoordinates?id=${id}`)
+  const result = await fetch(
+    `/api/locationCoordinates?id=${encodeURIComponent(id ?? '')}`,
+  )
     .then((response) => {
       return response.json()
     })
