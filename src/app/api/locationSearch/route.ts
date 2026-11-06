@@ -20,7 +20,7 @@ export async function GET(req: Request) {
     if (!process.env.GOOGLE_API)
       throw new HttpError('Missing Open Weather Credentials', 400)
 
-    spendProviderBudget('google')
+    spendProviderBudget('google', req.headers)
 
     const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(searchTerm)}&types=locality|postal_code|sublocality|country&key=${process.env.GOOGLE_API}`
 

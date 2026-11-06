@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import HomeClient from './components/HomeClient'
-import { allowClient } from '@/lib/api-guards'
+import { allowClient, isForeignBrowserRequest } from '@/lib/api-guards'
 import {
   parseShareCardParams,
   getShareCardData,
@@ -49,9 +49,16 @@ export async function generateMetadata({
   searchParams,
 }: Props): Promise<Metadata> {
   const params = parseShareCardParams(await searchParams)
-  if (!params || !allowClient(await headers())) return brandMetadata()
+  const requestHeaders = await headers()
+  // A frame on another site gets no live card: only a followed link or a
+  // crawler needs one, and framing would spend quota from its visitors' IPs
+  const framedByOtherSite =
+    isForeignBrowserRequest(requestHeaders) &&
+    requestHeaders.get('sec-fetch-dest') !== 'document'
+  if (!params || framedByOtherSite || !allowClient(requestHeaders))
+    return brandMetadata()
   try {
-    const card = await getShareCardData(params)
+    const card = await getShareCardData(params, requestHeaders)
     const place = card.name || 'Shared forecast'
     const title = `${place} — ${card.temperature}°${card.tempUnit}, ${card.condition}`
     const description = `H ${card.high}° · L ${card.low}° · Feels like ${card.feelsLike}° · Humidity ${card.humidity}% — live weather on Nice Out`

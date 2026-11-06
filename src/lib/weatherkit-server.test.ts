@@ -14,6 +14,7 @@ const payload = {
   forecastDaily: { days: [{ temperatureMax: 25, temperatureMin: 15 }] },
   forecastHourly: { hours: [{}] },
 }
+const client = new Headers({ 'x-real-ip': '1.1.1.1' })
 const fetchMock = vi.fn(
   async (_url: string, _init?: RequestInit) =>
     new Response(JSON.stringify(payload), { status: 200 }),
@@ -50,12 +51,12 @@ afterEach(() => {
 
 describe('fetchWeatherKit', () => {
   it('refuses path traversal at the egress point, before any upstream call', async () => {
-    await expect(fetchWeatherKit('../../x', '1?y')).rejects.toThrow()
+    await expect(fetchWeatherKit('../../x', '1?y', client)).rejects.toThrow()
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('never opts in to the Next data cache, whose key contains the fresh JWT', async () => {
-    await fetchWeatherKit('1', '1')
+    await fetchWeatherKit('1', '1', client)
     const init = fetchMock.mock.calls[0][1] as RequestInit & { next?: unknown }
     expect(init.cache).toBe('no-store')
     expect(init.next).toBeUndefined()
@@ -65,35 +66,35 @@ describe('fetchWeatherKit', () => {
 describe('getShareCardData', () => {
   it('dedupes repeat lookups even when each would sign a different JWT', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
-    await getShareCardData(card)
+    await getShareCardData(card, client)
     vi.advanceTimersByTime(5000)
-    await getShareCardData(card)
+    await getShareCardData(card, client)
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('collapses sub-3-decimal coordinate variations into one lookup', async () => {
     const a = parseShareCardParams({ lat: '40.70001', lon: '-74' })!
     const b = parseShareCardParams({ lat: '40.70002', lon: '-74' })!
-    await getShareCardData(a)
-    await getShareCardData(b)
+    await getShareCardData(a, client)
+    await getShareCardData(b, client)
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('refetches after the 15-minute window', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
-    await getShareCardData(card)
+    await getShareCardData(card, client)
     vi.advanceTimersByTime(901_000)
-    await getShareCardData(card)
+    await getShareCardData(card, client)
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it('holds a bounded number of entries however many coordinates are asked for', async () => {
     for (let i = 0; i < 510; i++)
-      await getShareCardData({ ...card, lat: String(i / 100) })
+      await getShareCardData({ ...card, lat: String(i / 100) }, client)
     fetchMock.mockClear()
-    await getShareCardData({ ...card, lat: String(509 / 100) }) // newest: kept
+    await getShareCardData({ ...card, lat: String(509 / 100) }, client) // newest: kept
     expect(fetchMock).toHaveBeenCalledTimes(0)
-    await getShareCardData({ ...card, lat: '0' }) // oldest: evicted
+    await getShareCardData({ ...card, lat: '0' }, client) // oldest: evicted
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
@@ -101,9 +102,19 @@ describe('getShareCardData', () => {
     fetchMock.mockImplementationOnce(
       async () => new Response('', { status: 503 }),
     )
-    await expect(getShareCardData(card)).rejects.toThrow()
-    await getShareCardData(card)
+    await expect(getShareCardData(card, client)).rejects.toThrow()
+    await getShareCardData(card, client)
     expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('per-client WeatherKit allowance', () => {
+  it('charges the requesting client only when an upstream call happens', async () => {
+    for (let i = 0; i < 1500; i++) await fetchWeatherKit('1', '1', client)
+    await expect(fetchWeatherKit('1', '1', client)).rejects.toThrow(/too many/i)
+    await expect(
+      fetchWeatherKit('1', '1', new Headers({ 'x-real-ip': '2.2.2.2' })),
+    ).resolves.toBeTruthy()
   })
 })
 

@@ -17,7 +17,7 @@ export async function GET(req: Request) {
     if (!process.env.GOOGLE_API)
       throw new HttpError('Missing Open Weather Credentials', 400)
 
-    spendProviderBudget('google')
+    spendProviderBudget('google', req.headers)
 
     const fetchCoords = await fetch(
       `https://maps.googleapis.com/maps/api/geocode/json?place_id=${googleLocationID}&key=${process.env.GOOGLE_API}`,

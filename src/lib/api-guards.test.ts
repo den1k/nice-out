@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { HttpError } from '@/utils/httpError'
 import {
   allowClient,
   boundCardName,
+  isForeignBrowserRequest,
   isValidPlaceId,
   normalizeCoords,
   resetGuardsForTest,
@@ -80,14 +82,86 @@ describe('allowClient', () => {
 })
 
 describe('spendProviderBudget', () => {
+  const t0 = Date.UTC(2026, 0, 1, 12)
+  const DAY = 24 * 3600 * 1000
+  // A different client for each call, to reach the global ceiling
+  const spendFromManyClients = (n: number) => {
+    for (let i = 0; i < n; i++)
+      spendProviderBudget(
+        'google',
+        fromIp(`10.${(i >> 16) & 255}.${(i >> 8) & 255}.${i & 255}`),
+        t0,
+      )
+  }
+
   it('stops a provider at its daily ceiling, independent of other providers', () => {
-    const t0 = Date.UTC(2026, 0, 1, 12)
-    for (let i = 0; i < 5000; i++) spendProviderBudget('google', t0)
-    expect(() => spendProviderBudget('google', t0)).toThrow(/budget/i)
-    expect(() => spendProviderBudget('weatherkit', t0)).not.toThrow()
+    spendFromManyClients(5000)
+    const other = fromIp('2.2.2.2')
+    expect(() => spendProviderBudget('google', other, t0)).toThrow(/budget/i)
+    expect(() => spendProviderBudget('weatherkit', other, t0)).not.toThrow()
+    expect(() => spendProviderBudget('google', other, t0 + DAY)).not.toThrow()
+  })
+
+  it('stops one client long before it can drain the shared ceiling', () => {
+    const attacker = fromIp('1.1.1.1')
+    let spent = 0
+    const spendAll = () => {
+      try {
+        for (let i = 0; i < 6000; i++) {
+          spendProviderBudget('google', attacker, t0)
+          spent++
+        }
+      } catch (e) {
+        expect((e as HttpError).status).toBe(429)
+      }
+    }
+    spendAll()
+    expect(spent).toBe(500) // 10% of the Google ceiling
+    // Everyone else is unaffected, including on other providers for this client
     expect(() =>
-      spendProviderBudget('google', t0 + 24 * 3600 * 1000),
+      spendProviderBudget('google', fromIp('2.2.2.2'), t0),
     ).not.toThrow()
+    expect(() => spendProviderBudget('weatherkit', attacker, t0)).not.toThrow()
+    // And the client recovers the next UTC day
+    expect(() =>
+      spendProviderBudget('google', attacker, t0 + DAY),
+    ).not.toThrow()
+  })
+
+  it('buckets the daily allowance by IPv6 /64', () => {
+    for (let i = 0; i < 500; i++)
+      spendProviderBudget(
+        'google',
+        fromIp(`2001:db8:1:2::${i.toString(16)}`),
+        t0,
+      )
+    expect(() =>
+      spendProviderBudget('google', fromIp('2001:db8:1:2::ffff'), t0),
+    ).toThrow(/too many/i)
+  })
+
+  it('does not charge the ceiling for a client over its allowance', () => {
+    const attacker = fromIp('1.1.1.1')
+    for (let i = 0; i < 5000; i++) {
+      try {
+        spendProviderBudget('google', attacker, t0)
+      } catch {}
+    }
+    spendFromManyClients(4500)
+    expect(() => spendProviderBudget('google', fromIp('2.2.2.2'), t0)).toThrow(
+      /budget/i,
+    )
+  })
+})
+
+describe('isForeignBrowserRequest', () => {
+  const site = (v?: string) =>
+    new Headers(v ? { 'sec-fetch-site': v } : undefined)
+  it.each(['cross-site', 'same-site'])('flags %s', (v) => {
+    expect(isForeignBrowserRequest(site(v))).toBe(true)
+  })
+  it.each(['same-origin', 'none', undefined])('allows %s', (v) => {
+    expect(isForeignBrowserRequest(site(v))).toBe(false)
   })
 })
 

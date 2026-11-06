@@ -1,7 +1,12 @@
 import { ImageResponse } from 'next/og'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { allowClient, boundCardName, tooManyRequests } from '@/lib/api-guards'
+import {
+  allowClient,
+  boundCardName,
+  isForeignBrowserRequest,
+  tooManyRequests,
+} from '@/lib/api-guards'
 import {
   parseShareCardParams,
   getShareCardData,
@@ -291,10 +296,10 @@ export async function GET(req: Request) {
   if (!allowClient(req.headers)) return tooManyRequests()
   const { searchParams } = new URL(req.url)
   const wantsBrandCard = !searchParams.has('lat') && !searchParams.has('lon')
-  const params = parseShareCardParams(
-    Object.fromEntries(searchParams.entries()),
-  )
-  if (!params && !wantsBrandCard) {
+  const params = isForeignBrowserRequest(req.headers)
+    ? null
+    : parseShareCardParams(Object.fromEntries(searchParams.entries()))
+  if (!params && !wantsBrandCard && !isForeignBrowserRequest(req.headers)) {
     return new Response(JSON.stringify({ error: 'Invalid coordinates' }), {
       status: 400,
     })
@@ -331,7 +336,7 @@ export async function GET(req: Request) {
 
   const name = boundCardName(params.name)
   try {
-    const card = await getShareCardData(params)
+    const card = await getShareCardData(params, req.headers)
     return await materialize(
       new ImageResponse(<Card card={{ ...card, name }} />, options),
       900,

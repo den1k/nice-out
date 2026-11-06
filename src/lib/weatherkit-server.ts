@@ -18,6 +18,7 @@ import {
 export async function fetchWeatherKit(
   lat: string,
   lon: string,
+  client: Headers,
   {
     dataSets = 'currentWeather,forecastHourly,forecastDaily',
   }: { dataSets?: string } = {},
@@ -57,7 +58,7 @@ export async function fetchWeatherKit(
     },
   )
 
-  spendProviderBudget('weatherkit')
+  spendProviderBudget('weatherkit', client)
 
   const url = `https://weatherkit.apple.com/api/v1/weather/en/${coords.lat}/${coords.lon}?dataSets=${dataSets}`
 
@@ -153,13 +154,17 @@ export const resetShareCardCacheForTest = () => {
   cardStore.__niceOutCardCache = new Map()
 }
 
-function cardWeather(lat: string, lon: string): Promise<any> {
+function cardWeather(
+  lat: string,
+  lon: string,
+  client: Headers,
+): Promise<any> {
   const cache = cardCache()
   const key = `${lat},${lon}`
   const hit = cache.get(key)
   if (hit && Date.now() - hit.at < CARD_TTL_MS) return hit.weather
   cache.delete(key)
-  const weather = fetchWeatherKit(lat, lon, {
+  const weather = fetchWeatherKit(lat, lon, client, {
     dataSets: 'currentWeather,forecastDaily',
   })
   weather.catch(() => cache.delete(key))
@@ -172,8 +177,9 @@ function cardWeather(lat: string, lon: string): Promise<any> {
 
 export async function getShareCardData(
   params: ShareCardParams,
+  client: Headers,
 ): Promise<ShareCardData> {
-  const json = await cardWeather(params.lat, params.lon)
+  const json = await cardWeather(params.lat, params.lon, client)
   const current = json.currentWeather
   const today = json.forecastDaily?.days?.[0]
   if (!current) throw new HttpError('No current weather', 502)

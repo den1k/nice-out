@@ -21,7 +21,7 @@ export async function GET(req: Request) {
     if (!coords) throw new HttpError('Invalid coordinates', 400)
     const { lat, lon } = coords
 
-    spendProviderBudget('openweathermap')
+    spendProviderBudget('openweathermap', req.headers)
     const url = `https://api.openweathermap.org/geo/1.0/reverse?lat=${lat}&lon=${lon}&limit=1&appid=${process.env.OPEN_WEATHER_MAP_API_KEY}`
 
     // get the data

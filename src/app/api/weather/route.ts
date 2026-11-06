@@ -12,7 +12,7 @@ export async function GET(req: Request) {
     )
     if (!coords) throw new HttpError('Invalid coordinates', 400)
 
-    const data = await fetchWeatherKit(coords.lat, coords.lon)
+    const data = await fetchWeatherKit(coords.lat, coords.lon, req.headers)
     if (!isCompleteForecast(data))
       throw new HttpError('Incomplete forecast', 502)
 
