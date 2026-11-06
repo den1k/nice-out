@@ -209,8 +209,14 @@ export const GlobalContextProvider = ({
   )?.queryData.location
   // Once the URL location's weather loads it becomes the active cached
   // location, so findLocation shadows it from then on and switching
-  // locations works as usual. GPS stays the last fallback.
-  const activeLocation = findLocation || urlState.location || location
+  // locations works as usual. Then GPS, then any saved place: with GPS denied and
+  // no location, the home page has no way to reach settings.
+  const activeLocation =
+    findLocation ||
+    urlState.location ||
+    location ||
+    cachedLocations?.[0]?.queryData.location ||
+    null
 
   const {
     data: weatherData,

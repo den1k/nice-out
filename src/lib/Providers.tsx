@@ -1,11 +1,15 @@
 'use client'
 
 import { QueryClient } from '@tanstack/react-query'
-import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
+import {
+  PersistQueryClientProvider,
+  type Persister,
+} from '@tanstack/react-query-persist-client'
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
 import { ReactNode, useEffect } from 'react'
 import { GlobalContextProvider } from './GlobalContext'
 import { shouldRetryQuery } from '@/utils/httpError'
+import { sanitizePersistedClient } from '@/utils/weatherPayload'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -16,9 +20,16 @@ const queryClient = new QueryClient({
   },
 })
 
-const persister = createSyncStoragePersister({
+const storagePersister = createSyncStoragePersister({
   storage: typeof window !== 'undefined' ? window.localStorage : null,
 })
+
+// The cache never expires, so a payload that cannot render must not get back in
+const persister: Persister = {
+  ...storagePersister,
+  restoreClient: async () =>
+    sanitizePersistedClient(await storagePersister.restoreClient()),
+}
 
 export default function Providers({
   children,
