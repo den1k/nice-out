@@ -1,6 +1,7 @@
 import { GeoLocationData, WeatherData } from '@/types/weatherKit'
 import { useQuery } from '@tanstack/react-query'
 import { HttpError } from '@/utils/httpError'
+import { isCompleteForecast } from '@/utils/weatherPayload'
 
 type GetWeatherDataArgs = {
   lat: number | undefined
@@ -83,6 +84,12 @@ export const useWeatherData = ({
       }
 
       const json = await res.json()
+
+      // Never reaches the persisted cache. The server checks this too, but the
+      // service worker can answer from a 200 it stored before that check.
+      if (!isCompleteForecast(json)) {
+        throw new HttpError('Incomplete forecast', 502)
+      }
 
       return {
         timezone: timeZone,

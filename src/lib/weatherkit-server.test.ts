@@ -4,7 +4,6 @@ import { resetGuardsForTest } from './api-guards'
 import {
   fetchWeatherKit,
   getShareCardData,
-  isCompleteForecast,
   parseShareCardParams,
   resetShareCardCacheForTest,
 } from './weatherkit-server'
@@ -115,18 +114,5 @@ describe('per-client WeatherKit allowance', () => {
     await expect(
       fetchWeatherKit('1', '1', new Headers({ 'x-real-ip': '2.2.2.2' })),
     ).resolves.toBeTruthy()
-  })
-})
-
-describe('isCompleteForecast', () => {
-  it('rejects the payloads that crash generate-graph-data once persisted', () => {
-    expect(isCompleteForecast(payload)).toBe(true)
-    expect(
-      isCompleteForecast({ ...payload, forecastDaily: { days: [] } }),
-    ).toBe(false)
-    expect(
-      isCompleteForecast({ ...payload, forecastHourly: { hours: [] } }),
-    ).toBe(false)
-    expect(isCompleteForecast({})).toBe(false)
   })
 })

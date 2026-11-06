@@ -81,13 +81,6 @@ export async function fetchWeatherKit(
   return response.json()
 }
 
-// A payload missing these crashes generate-graph-data, and a persisted one
-// would keep crashing the app on every load
-export const isCompleteForecast = (data: any): boolean =>
-  !!data?.currentWeather &&
-  data.forecastHourly?.hours?.length > 0 &&
-  data.forecastDaily?.days?.length > 0
-
 // ---- Shareable-link preview card data ----
 
 export type ShareCardParams = {

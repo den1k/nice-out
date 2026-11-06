@@ -1,6 +1,7 @@
 import { HttpError } from '@/utils/httpError'
 import { allowClient, normalizeCoords, tooManyRequests } from '@/lib/api-guards'
-import { fetchWeatherKit, isCompleteForecast } from '@/lib/weatherkit-server'
+import { fetchWeatherKit } from '@/lib/weatherkit-server'
+import { isCompleteForecast } from '@/utils/weatherPayload'
 
 export async function GET(req: Request) {
   if (!allowClient(req.headers)) return tooManyRequests()
