@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { HttpError } from '@/utils/httpError'
 import {
   allowClient,
@@ -137,7 +137,7 @@ describe('spendProviderBudget', () => {
       }
     }
     spendAll()
-    expect(spent).toBe(500) // 10% of the Google ceiling
+    expect(spent).toBe(200)
     // Everyone else is unaffected, including on other providers for this client
     expect(() =>
       spendProviderBudget('google', fromIp('2.2.2.2'), t0),
@@ -149,16 +149,48 @@ describe('spendProviderBudget', () => {
     ).not.toThrow()
   })
 
-  it('buckets the daily allowance by IPv6 /64', () => {
-    for (let i = 0; i < 500; i++)
+  it('buckets the daily allowance by IPv6 /48, so extra /64s do not help', () => {
+    for (let i = 0; i < 200; i++)
       spendProviderBudget(
         'google',
-        fromIp(`2001:db8:1:2::${i.toString(16)}`),
+        fromIp(`2001:db8:1:${i.toString(16)}::1`),
         t0,
       )
     expect(() =>
-      spendProviderBudget('google', fromIp('2001:db8:1:2::ffff'), t0),
+      spendProviderBudget('google', fromIp('2001:db8:1:ffff::1'), t0),
     ).toThrow(/too many/i)
+    expect(() =>
+      spendProviderBudget('google', fromIp('2001:db8:2::1'), t0),
+    ).not.toThrow()
+  })
+
+  it('needs far more than ten clients to drain a ceiling', () => {
+    let clients = 0
+    const drain = () => {
+      for (; clients < 1000; clients++) {
+        const ip = fromIp(`10.0.${clients >> 8}.${clients & 255}`)
+        for (let i = 0; i < 200; i++) spendProviderBudget('google', ip, t0)
+      }
+    }
+    expect(drain).toThrow(/budget/i)
+    expect(clients).toBeGreaterThanOrEqual(25)
+  })
+
+  it('logs hourly usage without addresses, and warns once at the ceiling', () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    spendProviderBudget('google', fromIp('203.0.113.9'), t0)
+    spendProviderBudget('google', fromIp('203.0.113.9'), t0 + 3_600_000)
+    const line = log.mock.calls[0][0] as string
+    expect(line).toContain('[budget] 2026-01-01')
+    expect(line).toContain('google=1/5000 clients=1 maxClient=1 refused=0')
+    expect(line).not.toContain('203.0.113')
+    spendFromManyClients(4998)
+    const other = fromIp('2.2.2.2')
+    expect(() => spendProviderBudget('google', other, t0 + 3_600_000)).toThrow()
+    expect(() => spendProviderBudget('google', other, t0 + 3_600_000)).toThrow()
+    expect(warn).toHaveBeenCalledTimes(1)
+    vi.restoreAllMocks()
   })
 
   it('does not charge the ceiling for a client over its allowance', () => {
@@ -168,7 +200,7 @@ describe('spendProviderBudget', () => {
         spendProviderBudget('google', attacker, t0)
       } catch {}
     }
-    spendFromManyClients(4500)
+    spendFromManyClients(4800)
     expect(() => spendProviderBudget('google', fromIp('2.2.2.2'), t0)).toThrow(
       /budget/i,
     )

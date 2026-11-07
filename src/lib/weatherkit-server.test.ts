@@ -109,7 +109,7 @@ describe('getShareCardData', () => {
 
 describe('per-client WeatherKit allowance', () => {
   it('charges the requesting client only when an upstream call happens', async () => {
-    for (let i = 0; i < 1500; i++) await fetchWeatherKit('1', '1', client)
+    for (let i = 0; i < 500; i++) await fetchWeatherKit('1', '1', client)
     await expect(fetchWeatherKit('1', '1', client)).rejects.toThrow(/too many/i)
     await expect(
       fetchWeatherKit('1', '1', new Headers({ 'x-real-ip': '2.2.2.2' })),
