@@ -37,6 +37,7 @@ export const useWeatherData = ({
         name: json.name,
         id: formattedId.replace(/\s/g, ''),
         timeZone: json.timeZone,
+        degraded: !!json.degraded,
       }
     } catch (err) {
       if (err instanceof HttpError) {
@@ -62,7 +63,9 @@ export const useWeatherData = ({
         lon: formatedLong,
       }),
     enabled: location !== null,
-    staleTime: 1000 * 60 * 60 * 30, // Refresh cache after 30 days
+    // Refresh cache after 30 hours. A coordinates-only name is a stopgap.
+    staleTime: (q) =>
+      q.state.data?.degraded ? 1000 * 60 * 15 : 1000 * 60 * 60 * 30,
     gcTime: Infinity, // dont delete cache ever
   })
 
@@ -93,6 +96,7 @@ export const useWeatherData = ({
 
       return {
         timezone: timeZone,
+        servedStale: res.headers.get('x-data-stale') === '1',
         current: json.currentWeather,
         hourly: json.forecastHourly.hours,
         daily: json.forecastDaily.days,

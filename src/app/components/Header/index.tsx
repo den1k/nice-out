@@ -42,6 +42,11 @@ const Header = () => {
           <div className="text-xl font-medium text-white md:text-3xl">
             {weatherData?.locationName}
           </div>
+          {weatherData?.servedStale && weatherData.current?.asOf && (
+            <div role="status" className="text-xs font-light text-white/80">
+              Forecast from {moment(weatherData.current.asOf).fromNow()}
+            </div>
+          )}
         </div>
       </div>
       <div className="flex w-full justify-between">

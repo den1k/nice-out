@@ -154,6 +154,8 @@ export type DailyForecast = {
 
 export type WeatherData = {
   timezone: string
+  // The server had no fresh forecast to give, so current holds an older reading
+  servedStale?: boolean
   current: CurrentWeather
   hourly: HourlyWeather[]
   daily: DailyWeather[]
