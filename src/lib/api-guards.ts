@@ -42,12 +42,14 @@ const DAY_MS = 24 * HOUR_MS
 
 // Ceilings on provider calls per UTC day, across all clients. WeatherKit's
 // included tier is 500k calls/month. Autocomplete and Geocoding are billed per
-// call, so Google gets the tightest cap. These bound cost. They are not yet
-// fitted to real traffic: the hourly [budget] log lines below are the data to
-// set them from.
+// call, so Google gets the tightest cap. Calibrated 2026-11-07 from nginx logs
+// since 2026-10-26. Peak requests in a day, an upper bound on provider calls:
+// /api/weather 13 (4 clients, at most 9 from one), locationNameInfo 7,
+// locationSearch 4, locationCoordinates 1. WeatherKit and OpenWeatherMap stay
+// sized to their included tiers. The hourly [budget] log lines below track this.
 const DAILY_PROVIDER_BUDGET = {
   weatherkit: 15_000,
-  google: 5_000,
+  google: 1_000,
   openweathermap: 15_000,
 }
 export type Provider = keyof typeof DAILY_PROVIDER_BUDGET
@@ -57,7 +59,7 @@ export type Provider = keyof typeof DAILY_PROVIDER_BUDGET
 // - weatherkit: 25 places refreshed hourly for 20 hours
 // - google: about 28 searches (6 keystroke pauses, plus picking a result)
 // - openweathermap: only GPS fixes need a name, and the client keeps it 30 hours
-// Draining a ceiling takes 30, 25 and 150 clients. Past its allowance a client
+// Draining a ceiling takes 30, 5 and 150 clients. Past its allowance a client
 // still gets cached data. Trade-off: visitors behind one IP share an allowance.
 const CLIENT_DAILY_ALLOWANCE: Record<Provider, number> = {
   weatherkit: 500,

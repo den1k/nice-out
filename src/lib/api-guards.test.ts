@@ -116,7 +116,7 @@ describe('spendProviderBudget', () => {
   }
 
   it('stops a provider at its daily ceiling, independent of other providers', () => {
-    spendFromManyClients(5000)
+    spendFromManyClients(1000)
     const other = fromIp('2.2.2.2')
     expect(() => spendProviderBudget('google', other, t0)).toThrow(/budget/i)
     expect(() => spendProviderBudget('weatherkit', other, t0)).not.toThrow()
@@ -164,7 +164,7 @@ describe('spendProviderBudget', () => {
     ).not.toThrow()
   })
 
-  it('needs far more than ten clients to drain a ceiling', () => {
+  it('takes five clients at their full allowance to drain Google', () => {
     let clients = 0
     const drain = () => {
       for (; clients < 1000; clients++) {
@@ -173,7 +173,7 @@ describe('spendProviderBudget', () => {
       }
     }
     expect(drain).toThrow(/budget/i)
-    expect(clients).toBeGreaterThanOrEqual(25)
+    expect(clients).toBe(5)
   })
 
   it('logs hourly usage without addresses, and warns once at the ceiling', () => {
@@ -183,9 +183,9 @@ describe('spendProviderBudget', () => {
     spendProviderBudget('google', fromIp('203.0.113.9'), t0 + 3_600_000)
     const line = log.mock.calls[0][0] as string
     expect(line).toContain('[budget] 2026-01-01')
-    expect(line).toContain('google=1/5000 clients=1 maxClient=1 refused=0')
+    expect(line).toContain('google=1/1000 clients=1 maxClient=1 refused=0')
     expect(line).not.toContain('203.0.113')
-    spendFromManyClients(4998)
+    spendFromManyClients(998)
     const other = fromIp('2.2.2.2')
     expect(() => spendProviderBudget('google', other, t0 + 3_600_000)).toThrow()
     expect(() => spendProviderBudget('google', other, t0 + 3_600_000)).toThrow()
@@ -200,7 +200,7 @@ describe('spendProviderBudget', () => {
         spendProviderBudget('google', attacker, t0)
       } catch {}
     }
-    spendFromManyClients(4800)
+    spendFromManyClients(800)
     expect(() => spendProviderBudget('google', fromIp('2.2.2.2'), t0)).toThrow(
       /budget/i,
     )

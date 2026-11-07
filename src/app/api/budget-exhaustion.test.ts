@@ -9,7 +9,7 @@ import { GET as nameInfo } from './locationNameInfo/route'
 
 // What a visitor gets once other clients have drained a provider's daily ceiling
 
-const CEILINGS = { weatherkit: 15_000, google: 5_000, openweathermap: 15_000 }
+const CEILINGS = { weatherkit: 15_000, google: 1_000, openweathermap: 15_000 }
 const drain = (provider: keyof typeof CEILINGS) => {
   // Stops at the ceiling, which earlier spends in the test bring closer
   try {
