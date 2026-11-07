@@ -1,17 +1,26 @@
 import { generateKeyPairSync } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetGuardsForTest } from './api-guards'
+import { resetProviderCacheForTest } from './provider-cache'
 import {
   fetchWeatherKit,
+  getForecast,
   getShareCardData,
   parseShareCardParams,
-  resetShareCardCacheForTest,
 } from './weatherkit-server'
 
 const payload = {
   currentWeather: { temperature: 20, conditionCode: 'Clear', daylight: true },
-  forecastDaily: { days: [{ temperatureMax: 25, temperatureMin: 15 }] },
-  forecastHourly: { hours: [{}] },
+  forecastDaily: {
+    days: [
+      {
+        forecastStart: '2026-01-01T00:00:00Z',
+        temperatureMax: 25,
+        temperatureMin: 15,
+      },
+    ],
+  },
+  forecastHourly: { hours: [{ forecastStart: '2026-01-01T00:00:00Z' }] },
 }
 const client = new Headers({ 'x-real-ip': '1.1.1.1' })
 const fetchMock = vi.fn(
@@ -40,7 +49,7 @@ beforeEach(() => {
   fetchMock.mockClear()
   vi.stubGlobal('fetch', fetchMock)
   resetGuardsForTest()
-  resetShareCardCacheForTest()
+  resetProviderCacheForTest()
 })
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -87,13 +96,9 @@ describe('getShareCardData', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
-  it('holds a bounded number of entries however many coordinates are asked for', async () => {
-    for (let i = 0; i < 510; i++)
-      await getShareCardData({ ...card, lat: String(i / 100) }, client)
-    fetchMock.mockClear()
-    await getShareCardData({ ...card, lat: String(509 / 100) }, client) // newest: kept
-    expect(fetchMock).toHaveBeenCalledTimes(0)
-    await getShareCardData({ ...card, lat: '0' }, client) // oldest: evicted
+  it('reuses a forecast fetched by /api/weather, and vice versa', async () => {
+    await getForecast('40.7', '-74', client)
+    await getShareCardData(card, client)
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 

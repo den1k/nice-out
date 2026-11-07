@@ -1,6 +1,8 @@
 import jwt from 'jsonwebtoken'
 import { HttpError } from '@/utils/httpError'
 import { normalizeCoords, spendProviderBudget } from '@/lib/api-guards'
+import { cachedProviderCall, CachePolicy } from '@/lib/provider-cache'
+import { isCompleteForecast } from '@/utils/weatherPayload'
 import {
   getConvertedTemperature,
   getConvertedWindSpeed,
@@ -19,9 +21,6 @@ export async function fetchWeatherKit(
   lat: string,
   lon: string,
   client: Headers,
-  {
-    dataSets = 'currentWeather,forecastHourly,forecastDaily',
-  }: { dataSets?: string } = {},
 ) {
   // Validated here, at the egress point, so no caller can reach another
   // weatherkit.apple.com path with the operator's token
@@ -60,7 +59,7 @@ export async function fetchWeatherKit(
 
   spendProviderBudget('weatherkit', client)
 
-  const url = `https://weatherkit.apple.com/api/v1/weather/en/${coords.lat}/${coords.lon}?dataSets=${dataSets}`
+  const url = `https://weatherkit.apple.com/api/v1/weather/en/${coords.lat}/${coords.lon}?dataSets=currentWeather,forecastHourly,forecastDaily`
 
   const response = await fetch(url, {
     method: 'GET',
@@ -70,7 +69,7 @@ export async function fetchWeatherKit(
     },
     // Not the Next data cache: its key includes headers, so the fresh JWT above
     // would write a new on-disk entry per call, and it never evicts.
-    // getShareCardData dedupes in memory instead.
+    // getForecast dedupes in memory instead.
     cache: 'no-store',
   })
 
@@ -79,6 +78,33 @@ export async function fetchWeatherKit(
   }
 
   return response.json()
+}
+
+// A day of staleness outlasts any drained ceiling, which clears at UTC midnight.
+// A forecast measured 135 KB, so this holds about 740 places.
+const FORECAST_CACHE: CachePolicy = {
+  name: 'forecast',
+  freshMs: 900_000, // match the app's 15-minute weather staleTime
+  staleMs: 24 * 3600 * 1000,
+  maxBytes: 96 * 1024 * 1024,
+}
+
+// The one way to read a forecast, shared by /api/weather, page metadata and the
+// share card, so that any of them can reuse a copy fetched by another
+export function getForecast(lat: string, lon: string, client: Headers) {
+  const coords = normalizeCoords(lat, lon)
+  if (!coords) throw new HttpError('Invalid coordinates', 400)
+  return cachedProviderCall(
+    FORECAST_CACHE,
+    `${coords.lat},${coords.lon}`,
+    client,
+    async () => {
+      const data = await fetchWeatherKit(coords.lat, coords.lon, client)
+      if (!isCompleteForecast(data))
+        throw new HttpError('Incomplete forecast', 502)
+      return data
+    },
+  )
 }
 
 // ---- Shareable-link preview card data ----
@@ -133,46 +159,11 @@ export type ShareCardData = {
   gradient: string[]
 }
 
-const CARD_TTL_MS = 900_000 // match the app's 15-minute weather staleTime
-const CARD_CACHE_MAX_ENTRIES = 500
-
-// Dedupes the crawler-triggered metadata + og-image lookups for the same coords.
-// Holds promises so concurrent misses share one upstream call. On globalThis
-// because page and route bundles get separate module instances.
-type CardCache = Map<string, { at: number; weather: Promise<any> }>
-const cardStore = globalThis as unknown as { __niceOutCardCache?: CardCache }
-const cardCache = () => (cardStore.__niceOutCardCache ??= new Map())
-
-export const resetShareCardCacheForTest = () => {
-  cardStore.__niceOutCardCache = new Map()
-}
-
-function cardWeather(
-  lat: string,
-  lon: string,
-  client: Headers,
-): Promise<any> {
-  const cache = cardCache()
-  const key = `${lat},${lon}`
-  const hit = cache.get(key)
-  if (hit && Date.now() - hit.at < CARD_TTL_MS) return hit.weather
-  cache.delete(key)
-  const weather = fetchWeatherKit(lat, lon, client, {
-    dataSets: 'currentWeather,forecastDaily',
-  })
-  weather.catch(() => cache.delete(key))
-  cache.set(key, { at: Date.now(), weather })
-  // Maps iterate in insertion order, so the first key is the oldest
-  if (cache.size > CARD_CACHE_MAX_ENTRIES)
-    cache.delete(cache.keys().next().value as string)
-  return weather
-}
-
 export async function getShareCardData(
   params: ShareCardParams,
   client: Headers,
 ): Promise<ShareCardData> {
-  const json = await cardWeather(params.lat, params.lon, client)
+  const { data: json } = await getForecast(params.lat, params.lon, client)
   const current = json.currentWeather
   const today = json.forecastDaily?.days?.[0]
   if (!current) throw new HttpError('No current weather', 502)

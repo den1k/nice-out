@@ -1,7 +1,6 @@
 import { HttpError } from '@/utils/httpError'
 import { allowClient, normalizeCoords, tooManyRequests } from '@/lib/api-guards'
-import { fetchWeatherKit } from '@/lib/weatherkit-server'
-import { isCompleteForecast } from '@/utils/weatherPayload'
+import { getForecast } from '@/lib/weatherkit-server'
 
 export async function GET(req: Request) {
   if (!allowClient(req.headers)) return tooManyRequests()
@@ -13,12 +12,17 @@ export async function GET(req: Request) {
     )
     if (!coords) throw new HttpError('Invalid coordinates', 400)
 
-    const data = await fetchWeatherKit(coords.lat, coords.lon, req.headers)
-    if (!isCompleteForecast(data))
-      throw new HttpError('Incomplete forecast', 502)
+    const { data, stale } = await getForecast(
+      coords.lat,
+      coords.lon,
+      req.headers,
+    )
 
     // // return the data to your front end
-    return Response.json(data, { status: 200 })
+    return Response.json(data, {
+      status: 200,
+      headers: stale ? { 'X-Data-Stale': '1' } : undefined,
+    })
   } catch (error) {
     let errorMessage = 'An unknown error occurred'
     let status = 500
