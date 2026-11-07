@@ -79,6 +79,27 @@ describe('allowClient', () => {
       allowClient(fromIp(`2001:db8:1:2:0:0:0:${i.toString(16)}`))
     expect(allowClient(fromIp('2001:db8:1:2:ffff:0:0:1'))).toBe(false)
   })
+
+  it('buckets a compressed IPv6 address by its real /64', () => {
+    // nginx prints the compressed form. A provider address such as
+    // 2600:3c00::f03c:91ff:fe00:1 has a zero run inside the /64 prefix, so the
+    // first four colon-separated fields are not the prefix.
+    for (let i = 0; i < 60; i++)
+      allowClient(fromIp(`2001:db8::${i.toString(16)}:1:2:3`))
+    expect(allowClient(fromIp('2001:db8::ffff:1:2:3'))).toBe(false)
+  })
+
+  it('does not merge different /64s that compress alike', () => {
+    for (let i = 0; i < 60; i++) allowClient(fromIp('2001:db8:1::1'))
+    expect(allowClient(fromIp('2001:db8:1::1'))).toBe(false)
+    expect(allowClient(fromIp('2001:db8:1:5::1'))).toBe(true)
+  })
+
+  it('keeps IPv4-mapped clients apart', () => {
+    for (let i = 0; i < 60; i++) allowClient(fromIp('::ffff:1.2.3.4'))
+    expect(allowClient(fromIp('::ffff:1.2.3.4'))).toBe(false)
+    expect(allowClient(fromIp('::ffff:5.6.7.8'))).toBe(true)
+  })
 })
 
 describe('spendProviderBudget', () => {

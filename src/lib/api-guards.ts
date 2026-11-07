@@ -87,11 +87,27 @@ export const resetGuardsForTest = () => {
   store.__niceOutGuards = freshState()
 }
 
+// The leading `count` 16-bit groups of an IPv6 address in any textual form.
+// nginx prints the compressed form, where a zero run can sit inside the prefix.
+const ipv6Prefix = (ip: string, count: number) => {
+  const [head, tail] = ip.split('%')[0].split('::')
+  const left = head ? head.split(':') : []
+  const right = tail ? tail.split(':') : []
+  const zeros = Array(Math.max(0, 8 - left.length - right.length)).fill('0')
+  return [...left, ...zeros, ...right]
+    .slice(0, count)
+    .map((group) => group.toLowerCase().replace(/^0+(?=.)/, ''))
+    .join(':')
+}
+
 // nginx sets X-Real-IP to $remote_addr. X-Forwarded-For is client-appendable,
 // so it is deliberately not consulted. An IPv6 client owns a whole /64.
 const clientKey = (headers: Headers) => {
   const ip = headers.get('x-real-ip') ?? 'unknown'
-  return ip.includes(':') ? ip.split(':').slice(0, 4).join(':') : ip
+  if (!ip.includes(':')) return ip
+  // IPv4-mapped: the client is the IPv4 address, not the all-zero prefix
+  if (ip.includes('.')) return ip.slice(ip.lastIndexOf(':') + 1)
+  return ipv6Prefix(ip, 4)
 }
 
 export function allowClient(headers: Headers, now = Date.now()): boolean {
