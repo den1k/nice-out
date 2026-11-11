@@ -59,12 +59,22 @@ export type Provider = keyof typeof DAILY_PROVIDER_BUDGET
 // - weatherkit: 25 places refreshed hourly for 20 hours
 // - google: about 28 searches (6 keystroke pauses, plus picking a result)
 // - openweathermap: only GPS fixes need a name, and the client keeps it 30 hours
-// Draining a ceiling takes 30, 5 and 150 clients. Past its allowance a client
-// still gets cached data. Trade-off: visitors behind one IP share an allowance.
+// Past its allowance a client still gets cached data. Trade-off: visitors
+// behind one IP share an allowance.
 const CLIENT_DAILY_ALLOWANCE: Record<Provider, number> = {
   weatherkit: 500,
   google: 200,
   openweathermap: 100,
+}
+
+// Once half a ceiling is spent, which real traffic is far from (peak Google use
+// is under 1% of it), each client's allowance shrinks to this. A light visitor
+// still gets a few places or searches; a heavy client gets no more. Draining
+// then takes about 165, 23 and 825 clients rather than 30, 5 and 150.
+const LEAN_CLIENT_ALLOWANCE: Record<Provider, number> = {
+  weatherkit: 50,
+  google: 25,
+  openweathermap: 10,
 }
 
 // Bounds memory if someone cycles IPv6 prefixes. Clearing only forgives
@@ -209,9 +219,12 @@ export function spendProviderBudget(
   }
   const clientSpendKey = `${provider}|${budgetClientKey(client)}`
   const clientSpent = s.clientSpent.get(clientSpendKey) ?? 0
-  if (clientSpent >= CLIENT_DAILY_ALLOWANCE[provider])
-    throw refuse('Too many requests today')
   const spent = s.spent.get(provider) ?? 0
+  const allowance =
+    spent * 2 >= DAILY_PROVIDER_BUDGET[provider]
+      ? LEAN_CLIENT_ALLOWANCE[provider]
+      : CLIENT_DAILY_ALLOWANCE[provider]
+  if (clientSpent >= allowance) throw refuse('Too many requests today')
   if (spent >= DAILY_PROVIDER_BUDGET[provider]) {
     if (!s.ceilingWarned.has(provider))
       console.warn(`[budget] ${provider} daily ceiling reached`)

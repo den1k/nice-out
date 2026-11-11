@@ -164,16 +164,36 @@ describe('spendProviderBudget', () => {
     ).not.toThrow()
   })
 
-  it('takes five clients at their full allowance to drain Google', () => {
+  it('takes 23 clients to drain Google, because allowances shrink past half', () => {
     let clients = 0
     const drain = () => {
       for (; clients < 1000; clients++) {
         const ip = fromIp(`10.0.${clients >> 8}.${clients & 255}`)
-        for (let i = 0; i < 200; i++) spendProviderBudget('google', ip, t0)
+        try {
+          for (let i = 0; i < 200; i++) spendProviderBudget('google', ip, t0)
+        } catch (e) {
+          if (!/too many/i.test((e as Error).message)) throw e
+        }
       }
     }
     expect(drain).toThrow(/budget/i)
-    expect(clients).toBe(5)
+    // 2.5 clients at 200 reach half the ceiling, then 20 more at 25 each
+    expect(clients).toBe(23)
+  })
+
+  it('keeps light clients served once half the ceiling is spent', () => {
+    const early = fromIp('1.1.1.1')
+    for (let i = 0; i < 30; i++) spendProviderBudget('google', early, t0)
+    spendFromManyClients(470) // 500 of 1,000 spent
+    // A client past the lean allowance of 25 stops here
+    expect(() => spendProviderBudget('google', early, t0)).toThrow(/too many/i)
+    // A new or light client still gets its 25
+    const light = fromIp('2.2.2.2')
+    for (let i = 0; i < 25; i++)
+      expect(() => spendProviderBudget('google', light, t0)).not.toThrow()
+    expect(() => spendProviderBudget('google', light, t0)).toThrow(/too many/i)
+    // Other providers are judged on their own spend
+    for (let i = 0; i < 100; i++) spendProviderBudget('weatherkit', early, t0)
   })
 
   it('logs hourly usage without addresses, and warns once at the ceiling', () => {
